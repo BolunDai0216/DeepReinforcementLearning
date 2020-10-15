@@ -16,6 +16,8 @@ class Agent:
         self.iter_num = config.iter_num
         self.gamma = config.gamma
         self.stamp = datetime.fromtimestamp(time()).strftime('%Y%m%d-%H%M%S')
+        self.max_iter = config.max_iter
+        self.log_freq = config.log_freq
 
     def train(self):
         train_log_dir = 'logs/reinforce/' + self.stamp + '/train'
@@ -45,7 +47,7 @@ class Agent:
                 current_state = next_state
                 cummulative_reward += reward
                 step_num += 1
-                if step_num >= 500:
+                if step_num >= self.max_iter:
                     break
 
             returns = np.zeros_like(self.rewards, dtype=np.float32)
@@ -66,7 +68,7 @@ class Agent:
                 tf.summary.scalar('loss', loss_value, step=episode)
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
 
-            if (episode + 1) % 100 == 0:
+            if (episode + 1) % self.log_freq == 0:
                 filename = 'reinforce_models/{}/{}'.format(
                     self.stamp, episode + 1)
                 self.reinforce.net.save(filename)
@@ -107,7 +109,7 @@ class Agent:
                 current_state = next_state
                 cummulative_reward += reward
                 step_num += 1
-                if step_num >= 500:
+                if step_num >= self.max_iter:
                     break
 
             with test_summary_writer.as_default():
