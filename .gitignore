@@ -10,6 +10,9 @@ checkpoint
 *.json
 *.pkl.gzip
 
+# Tensorboard
+logs/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
