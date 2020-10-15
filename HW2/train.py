@@ -47,6 +47,10 @@ class DQNAgent:
         self.batch_size = config.batch_size
         self.gamma = config.gamma
         self.stamp = datetime.fromtimestamp(time()).strftime('%Y%m%d-%H%M%S')
+        self.max_iter = config.max_iter
+        self.log_freq = config.log_freq
+        self.target_update_freq = config.target_update_freq
+        self.window_close_freq = config.window_close_freq
 
     def burn_in_memory(self):
         # Initialize your replay memory with a burn_in number of episodes / transitions.
@@ -163,7 +167,7 @@ class DQNAgent:
                 state_memory = next_state_memory
 
                 step_num += 1
-                if step_num >= 1000:
+                if step_num >= self.max_iter:
                     break
             
 
@@ -177,14 +181,14 @@ class DQNAgent:
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
 
             # Deals with memory leak
-            if (episode + 1) % 10 == 0:
+            if (episode + 1) % self.window_close_freq == 0:
                 self.env.close()
 
-            if (episode + 1) % 25 == 0:
+            if (episode + 1) % self.target_update_freq == 0:
                 self.dqn.target_net.net.set_weights(
                     self.dqn.eval_net.net.get_weights())
 
-            if (episode + 1) % 100 == 0:
+            if (episode + 1) % self.log_freq == 0:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
                 self.dqn.eval_net.save(filename)
                 print("Model saved at {}".format(filename))
