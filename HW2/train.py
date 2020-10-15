@@ -5,6 +5,9 @@ from model import DQN
 import json
 import munch
 import numpy as np
+from datetime import datetime
+from time import time
+import matplotlib.pyplot as plt
 
 
 def get_action(action_num):
@@ -20,11 +23,14 @@ def get_action(action_num):
     elif action_num == 3:
         # BRAKE
         action = np.array([0.0, 0.0, 0.2])
+    elif action_num == 4:
+        # STRAIGHT
+        action = np.array([0.0, 0.0, 0.0])
     return action
 
 
 def rgb2gray(rgb):
-    """ 
+    """
     this method converts rgb images to grayscale.
     """
     gray = np.dot(rgb[..., :3], [0.2125, 0.7154, 0.0721])
@@ -38,6 +44,9 @@ class DQNAgent:
         self.dqn = DQN(config, self.env)
         self.epsilon = config.epsilon
         self.iter_num = config.iter_num
+        self.batch_size = config.batch_size
+        self.gamma = config.gamma
+        self.stamp = datetime.fromtimestamp(time()).strftime('%Y%m%d-%H%M%S')
 
     def burn_in_memory(self):
         # Initialize your replay memory with a burn_in number of episodes / transitions.
@@ -51,7 +60,9 @@ class DQNAgent:
             state_memory = np.expand_dims(state_memory, axis=0)
 
             for episode in range(self.dqn.replay_buffer.burn_in_size):
-                action = self.env.action_space.sample()
+                action_num = np.random.choice(
+                    [0, 1, 2, 3, 4], 1, replace=False)[0]
+                action = get_action(action_num)
                 next_state, reward, is_terminal, _ = self.env.step(action)
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
                 next_state_memory = np.concatenate(
@@ -62,7 +73,7 @@ class DQNAgent:
                     "state": state_memory,
                     "next_state": next_state_memory,
                     "reward": reward,
-                    "action": action,
+                    "action": action_num,
                     "terminal": is_terminal,
                 }
                 self.dqn.replay_buffer.add_sample(sample)
@@ -92,19 +103,26 @@ class DQNAgent:
         # Creating epsilon greedy probabilities to sample from.
         epsilon = np.random.rand()
         if epsilon <= self.epsilon:
-            return self.env.action_space.sample()
+            action_num = np.random.choice(
+                [0, 1, 2, 3, 4], 1, replace=False)[0]
+            action = get_action(action_num)
         else:
-            return self.greedy_policy(q_values)
+            action, action_num = self.greedy_policy(q_values)
+        return action, action_num
 
     def greedy_policy(self, q_values):
         # Creating greedy policy for test time.
         action_num = np.argmax(q_values)
         action = get_action(action_num)
-        return action
+        return action, action_num
 
     def train(self):
         self.reward_log = []
         self.burn_in_memory()
+
+        # Assign eval_net weights to target_net
+        self.dqn.target_net.net.set_weights(
+            self.dqn.eval_net.net.get_weights())
 
         for episode in range(self.iter_num):
             cummulative_reward = 0
@@ -118,9 +136,11 @@ class DQNAgent:
             state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
             state_memory = np.expand_dims(state_memory, axis=0)
 
+            step_num = 0
+
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action = self.epsilon_greedy_policy(q_values)
+                action, action_num = self.epsilon_greedy_policy(q_values)
                 next_state, reward, is_terminal, _ = self.env.step(action)
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
                 next_state_memory = np.concatenate(
@@ -130,7 +150,7 @@ class DQNAgent:
                     "state": state_memory,
                     "next_state": next_state_memory,
                     "reward": reward,
-                    "action": action,
+                    "action": action_num,
                     "terminal": is_terminal,
                 }
 
@@ -139,10 +159,71 @@ class DQNAgent:
                 cummulative_reward += reward
                 current_state = next_state
                 state_memory = next_state_memory
-                set_trace()
 
-            print("Iteration: {}, Reward: {}".format(
-                episode, cummulative_reward))
+                step_num += 1
+                if step_num >= 1000:
+                    break
+
+            loss_value = self.optimize_step()
+
+            print("Iteration: {}, Reward: {}, Loss: {}".format(
+                episode, cummulative_reward, loss_value))
+            self.reward_log.append(cummulative_reward)
+
+            if (episode + 1) % 25 == 0:
+                self.dqn.target_net.net.set_weights(
+                    self.dqn.eval_net.net.get_weights())
+
+            if (episode + 1) % 100 == 0:
+                filename = 'models/{}/{}'.format(self.stamp, episode + 1)
+                self.dqn.eval_net.save(filename)
+                print("Model saved at {}".format(filename))
+
+        plt.figure()
+        plt.plot(range(self.iter_num), self.reward_log, linewidth=2.0)
+        plt.xlabel("Iterations", fontsize=16)
+        plt.ylabel("Reward", fontsize=16)
+        plt.title("Training Progress", fontsize=16)
+        plt.savefig("dqn_car_racing.png")
+
+    def optimize_step(self):
+        batch = self.dqn.replay_buffer.get_samples(self.batch_size)
+        # Shape [batch_size, image_h, image_w, history_length]
+        batch_state_memory = np.array([sample["state"] for sample in batch])[
+            :, 0, :, :, :]
+        # Shape [batch_size, image_h, image_w, history_length]
+        batch_next_state_memory = np.array(
+            [sample["next_state"] for sample in batch])[:, 0, :, :, :]
+        # Shape [batch_size, ]
+        batch_reward = np.array([sample["reward"] for sample in batch])
+        # Shape [batch_size, 3]
+        batch_action = np.array([sample["action"] for sample in batch])
+        # Shape [batch_size, ]
+        batch_terminal = np.array([sample["terminal"] for sample in batch])
+
+        next_q_vals = self.dqn.target_net.net(batch_next_state_memory)
+        y_vals = batch_reward + self.gamma * \
+            (1 - batch_terminal) * tf.reduce_max(next_q_vals, axis=1)
+        one_hot_actions = tf.keras.utils.to_categorical(
+            batch_action, self.dqn.action_size, dtype=np.float32)
+
+        loss_value = self.train_step(
+            y_vals, batch_state_memory, one_hot_actions)
+        return loss_value
+
+    @tf.function
+    def train_step(self, y_vals, batch_state_memory, one_hot_actions):
+        with tf.GradientTape() as tape:
+            q_vals = self.dqn.eval_net.net(batch_state_memory, training=True)
+            q_action_vals = tf.reduce_sum(
+                tf.multiply(q_vals, one_hot_actions), axis=1)
+            loss_value = self.dqn.eval_net.loss(y_vals, q_action_vals)
+
+        grads = tape.gradient(
+            loss_value, self.dqn.eval_net.net.trainable_weights)
+        self.dqn.eval_net.optimizer.apply_gradients(
+            zip(grads, self.dqn.eval_net.net.trainable_weights))
+        return loss_value
 
 
 def main():
@@ -153,16 +234,7 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     agent = DQNAgent(config, env)
-
-    state = env.reset()
     agent.train()
-    set_trace()
-    # agent.dqn.eval_net.net(state)
-
-    while True:
-        action = env.action_space.sample()
-        set_trace()
-        next_state, r, done, _ = env.step(action)
 
 
 if __name__ == "__main__":

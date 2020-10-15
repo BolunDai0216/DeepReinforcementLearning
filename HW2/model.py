@@ -35,7 +35,6 @@ class ReplayBuffer:
         self.max_size = config.max_buffer_size
         self.burn_in_size = config.burn_in_size
         self.buffer = []
-        self.sample_array = np.arange(self.max_size)
         self.is_burn_in = False
 
     def add_sample(self, sample):
@@ -44,7 +43,8 @@ class ReplayBuffer:
             self.buffer.pop()
 
     def get_samples(self, batch_size):
-        idx = np.random.choice(self.sample_array, batch_size, replace=False)
+        sample_array = np.arange(len(self.buffer))
+        idx = np.random.choice(sample_array, batch_size, replace=False)
         samples = [self.buffer[i] for i in idx.tolist()]
         return samples
 

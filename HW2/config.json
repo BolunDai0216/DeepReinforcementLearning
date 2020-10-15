@@ -1,7 +1,7 @@
 {
     "history_length": 10,
     "lr": 1e-4,
-    "epsilon": 0.005,
+    "epsilon": 0.05,
     "max_buffer_size": 50000,
     "burn_in_size": 1000,
     "iter_num": 10000,
