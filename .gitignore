@@ -1,3 +1,16 @@
+# Mac
+.DS_Store
+
+# Models
+*.data-00000-of-00001
+*.data-00000-of-00002
+*.data-00001-of-00002
+*.index
+checkpoint
+*.json
+*.pkl.gzip
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
