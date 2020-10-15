@@ -7,7 +7,7 @@ import numpy as np
 
 
 class Model:
-    def __init__(self, history_length, action_size):
+    def __init__(self, history_length, action_size, lr=1e-4):
         # Define network
         inputs = tf.keras.Input(shape=(96, 96, history_length), name='input')
         l1 = Conv2D(8, (7, 7), strides=(3, 3), activation='relu')(inputs)
@@ -18,6 +18,16 @@ class Model:
         l6 = Dense(256, activation='relu')(l5)
         l7 = Dense(action_size, activation='linear')(l6)
         self.net = tf.keras.Model(inputs=inputs, outputs=l7)
+
+        # Loss and optimizer
+        self.loss = tf.keras.losses.MeanSquaredError()
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+
+    def load(self, file_name):
+        self.net.load_weights(file_name)
+
+    def save(self, file_name):
+        self.net.save_weights(file_name)
 
 
 class ReplayBuffer:
@@ -35,7 +45,7 @@ class ReplayBuffer:
 
     def get_samples(self, batch_size):
         idx = np.random.choice(self.sample_array, batch_size, replace=False)
-        samples = [self.buffer[i] in idx.tolist()]
+        samples = [self.buffer[i] for i in idx.tolist()]
         return samples
 
 
@@ -44,20 +54,7 @@ class DQN:
         self.history_length = config.history_length
         self.lr = config.lr
         self.env = env
-        self.eval_net = Model(self.history_length,
-                              self.env.action_space.shape[0])
-        self.target_net = Model(self.history_length,
-                                self.env.action_space.shape[0])
+        self.action_size = 5  # LEFT, RIGHT, BRAKE, ACCELERATE, STRAIGHT
+        self.eval_net = Model(self.history_length, self.action_size, self.lr)
+        self.target_net = Model(self.history_length, self.action_size, self.lr)
         self.replay_buffer = ReplayBuffer(config)
-
-
-def main():
-    config_path = 'config.json'
-    with open(config_path) as json_file:
-        config = json.load(json_file)
-    config = munch.munchify(config)
-    dqn = DQN(config)
-
-
-if __name__ == "__main__":
-    main()
