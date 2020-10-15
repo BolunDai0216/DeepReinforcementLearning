@@ -232,10 +232,10 @@ class DQNAgent:
 def main():
     tf.debugging.set_log_device_placement(True)
     gpus = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_visible_devices(gpus[1], 'GPU')
-    tf.config.experimental.set_memory_growth(gpus[1], True)
+    tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[2], True)
 
-    with tf.device('/device:GPU:1'):
+    with tf.device('/device:GPU:2'):
         env = gym.make('CarRacing-v0').unwrapped
         config_path = 'config.json'
         with open(config_path) as json_file:
