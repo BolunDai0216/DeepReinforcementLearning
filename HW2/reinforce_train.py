@@ -88,7 +88,7 @@ class Agent:
             zip(grads, self.reinforce.net.net.trainable_weights))
         return loss_value
 
-    def test(self, filename, test_iters):
+    def test(self, filename, test_iters, render=False):
         self.reinforce.net.load(filename)
         test_log_dir = 'logs/reinforce/' + self.stamp + '/test'
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
@@ -105,6 +105,8 @@ class Agent:
                 action = np.random.choice(
                     self.env.action_space.n, 1, p=action_prob[0].numpy())[0]
                 next_state, reward, is_terminal, _ = self.env.step(action)
+                if render:
+                    self.env.render()
 
                 current_state = next_state
                 cummulative_reward += reward
@@ -123,7 +125,9 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     reinforce_agent = Agent(env, config)
-    reinforce_agent.train()
+    # reinforce_agent.train()
+    reinforce_agent.test(
+        "reinforce_models/20201015-164002/10000", 15, render=True)
 
 
 if __name__ == "__main__":
