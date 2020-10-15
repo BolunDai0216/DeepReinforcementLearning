@@ -102,7 +102,7 @@ class DQNAgent:
     def epsilon_greedy_policy(self, q_values):
         # Creating epsilon greedy probabilities to sample from.
         epsilon = np.random.rand()
-        if epsilon <= self.epsilon:
+        if epsilon <= self.epsilon_true:
             action_num = np.random.choice(
                 [0, 1, 2, 3, 4], 1, replace=False)[0]
             action = get_action(action_num)
@@ -117,10 +117,10 @@ class DQNAgent:
         return action, action_num
 
     def train(self):
-        self.reward_log = []
         self.burn_in_memory()
         train_log_dir = 'logs/gradient_tape/' + self.stamp + '/train'
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+        self.env.viewer = None
 
         # Assign eval_net weights to target_net
         self.dqn.target_net.net.set_weights(
@@ -131,7 +131,7 @@ class DQNAgent:
             is_terminal = False
             current_state = self.env.reset()
             self.epsilon_true = self.epsilon - \
-                (self.epsilon - 0.001) * episode / (self.iter_num * 1.0)
+                (self.epsilon - 0.01) * episode / (self.iter_num * 1.0)
 
             # Initialize history
             gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
@@ -165,15 +165,20 @@ class DQNAgent:
                 step_num += 1
                 if step_num >= 1000:
                     break
+            
 
             loss_value = self.optimize_step()
 
-            print("Iteration: {}, Reward: {}, Loss: {}".format(
-                episode, cummulative_reward, loss_value))
+            print("Iteration: {}, Reward: {}, Loss: {}, Replay Buffer Size: {}".format(
+                episode, cummulative_reward, loss_value, len(self.dqn.replay_buffer.buffer)))
             
             with train_summary_writer.as_default():
                 tf.summary.scalar('loss', loss_value, step=episode)
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
+
+            # Deals with memory leak
+            if (episode + 1) % 10 == 0:
+                self.env.close()
 
             if (episode + 1) % 25 == 0:
                 self.dqn.target_net.net.set_weights(
@@ -183,13 +188,6 @@ class DQNAgent:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
                 self.dqn.eval_net.save(filename)
                 print("Model saved at {}".format(filename))
-
-        plt.figure()
-        plt.plot(range(self.iter_num), self.reward_log, linewidth=2.0)
-        plt.xlabel("Iterations", fontsize=16)
-        plt.ylabel("Reward", fontsize=16)
-        plt.title("Training Progress", fontsize=16)
-        plt.savefig("dqn_car_racing.png")
 
     def optimize_step(self):
         batch = self.dqn.replay_buffer.get_samples(self.batch_size)
@@ -232,9 +230,13 @@ class DQNAgent:
 
 
 def main():
+    tf.debugging.set_log_device_placement(True)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_visible_devices(gpus[1], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[1], True)
+
     with tf.device('/device:GPU:1'):
         env = gym.make('CarRacing-v0').unwrapped
-
         config_path = 'config.json'
         with open(config_path) as json_file:
             config = json.load(json_file)

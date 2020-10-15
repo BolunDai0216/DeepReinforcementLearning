@@ -40,7 +40,7 @@ class ReplayBuffer:
     def add_sample(self, sample):
         self.buffer.append(sample)
         if len(self.buffer) > self.max_size:
-            self.buffer.pop()
+            self.buffer.pop(0)
 
     def get_samples(self, batch_size):
         sample_array = np.arange(len(self.buffer))
