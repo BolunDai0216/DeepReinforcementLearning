@@ -92,7 +92,7 @@ class DQNAgent:
                     state_memory = next_state_memory
 
                 if (episode+1) % 1000 == 0:
-                    print("Burned in {} pieces of memory ...".format(episode))
+                    print("Burned in {} pieces of memory ...".format(episode+1))
 
             self.dqn.replay_buffer.is_burn_in = True
             print("Burn in memory complete...")
@@ -119,6 +119,8 @@ class DQNAgent:
     def train(self):
         self.reward_log = []
         self.burn_in_memory()
+        train_log_dir = 'logs/gradient_tape/' + self.stamp + '/train'
+        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
         # Assign eval_net weights to target_net
         self.dqn.target_net.net.set_weights(
@@ -168,7 +170,10 @@ class DQNAgent:
 
             print("Iteration: {}, Reward: {}, Loss: {}".format(
                 episode, cummulative_reward, loss_value))
-            self.reward_log.append(cummulative_reward)
+            
+            with train_summary_writer.as_default():
+                tf.summary.scalar('loss', loss_value, step=episode)
+                tf.summary.scalar('reward', cummulative_reward, step=episode)
 
             if (episode + 1) % 25 == 0:
                 self.dqn.target_net.net.set_weights(
@@ -227,14 +232,15 @@ class DQNAgent:
 
 
 def main():
-    env = gym.make('CarRacing-v0').unwrapped
+    with tf.device('/device:GPU:1'):
+        env = gym.make('CarRacing-v0').unwrapped
 
-    config_path = 'config.json'
-    with open(config_path) as json_file:
-        config = json.load(json_file)
-    config = munch.munchify(config)
-    agent = DQNAgent(config, env)
-    agent.train()
+        config_path = 'config.json'
+        with open(config_path) as json_file:
+            config = json.load(json_file)
+        config = munch.munchify(config)
+        agent = DQNAgent(config, env)
+        agent.train()
 
 
 if __name__ == "__main__":
