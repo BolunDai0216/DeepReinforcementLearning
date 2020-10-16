@@ -9,23 +9,33 @@ from datetime import datetime
 from time import time
 import matplotlib.pyplot as plt
 
+# When running in a headless server use the command:
+# xvfb-run python3 train.py
+
 
 def get_action(action_num):
-    if action_num == 0:
-        # LEFT
-        action = np.array([-1.0, 0.0, 0.0])
-    elif action_num == 1:
-        # RIGHT
-        action = np.array([1.0, 0.0, 0.0])
-    elif action_num == 2:
-        # ACCELERATE
-        action = np.array([0.0, 1.0, 0.0])
-    elif action_num == 3:
-        # BRAKE
-        action = np.array([0.0, 0.0, 0.2])
-    elif action_num == 4:
-        # STRAIGHT
-        action = np.array([0.0, 0.0, 0.0])
+    action_space    = [
+            [-1, 1, 0.2], [0, 1, 0.2], [1, 1, 0.2], # Action Space Structure
+            [-1, 1,   0], [0, 1,   0], [1, 1,   0], #        (Steering Wheel, Gas, Break)
+            [-1, 0, 0.2], [0, 0, 0.2], [1, 0, 0.2], # Range        -1~1       0~1   0~1
+            [-1, 0,   0], [0, 0,   0], [1, 0,   0]
+        ]
+    action = np.array(action_space[action_num])
+#     if action_num == 0:
+#         # LEFT
+#         action = np.array([-1.0, 0.0, 0.0])
+#     elif action_num == 1:
+#         # RIGHT
+#         action = np.array([1.0, 0.0, 0.0])
+#     elif action_num == 2:
+#         # ACCELERATE
+#         action = np.array([0.0, 1.0, 0.0])
+#     elif action_num == 3:
+#         # BRAKE
+#         action = np.array([0.0, 0.0, 0.2])
+#     elif action_num == 4:
+#         # STRAIGHT
+#         action = np.array([0.0, 0.0, 0.0])
     return action
 
 
@@ -65,7 +75,7 @@ class DQNAgent:
 
             for episode in range(self.dqn.replay_buffer.burn_in_size):
                 action_num = np.random.choice(
-                    [0, 1, 2, 3, 4], 1, replace=False)[0]
+                    np.arange(self.dqn.action_size), 1, replace=False)[0]
                 action = get_action(action_num)
                 next_state, reward, is_terminal, _ = self.env.step(action)
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
@@ -108,7 +118,7 @@ class DQNAgent:
         epsilon = np.random.rand()
         if epsilon <= self.epsilon_true:
             action_num = np.random.choice(
-                [0, 1, 2, 3, 4], 1, replace=False)[0]
+                    np.arange(self.dqn.action_size), 1, replace=False)[0]
             action = get_action(action_num)
         else:
             action, action_num = self.greedy_policy(q_values)
