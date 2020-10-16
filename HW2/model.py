@@ -11,9 +11,9 @@ class Model:
         # Define network
         inputs = tf.keras.Input(shape=(96, 96, history_length), name='input')
         l1 = Conv2D(8, (7, 7), strides=(3, 3), activation='relu')(inputs)
-        l2 = MaxPool2D(pool_size=(2, 2), strides=2)(l1)
-        l3 = Conv2D(16, (3, 3), activation='relu')(l2)
-        l4 = MaxPool2D(pool_size=(2, 2), strides=2)(l3)
+        l2 = MaxPool2D(pool_size=(2, 2))(l1)
+        l3 = Conv2D(16, (4, 4), activation='relu')(l2)
+        l4 = MaxPool2D(pool_size=(2, 2))(l3)
         l5 = Flatten()(l4)
         l6 = Dense(256, activation='relu')(l5)
         l7 = Dense(action_size, activation='linear')(l6)
@@ -21,7 +21,7 @@ class Model:
 
         # Loss and optimizer
         self.loss = tf.keras.losses.MeanSquaredError()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr, epsilon=1e-7)
 
     def load(self, file_name):
         self.net.load_weights(file_name)
@@ -54,7 +54,7 @@ class DQN:
         self.history_length = config.history_length
         self.lr = config.lr
         self.env = env
-        self.action_size = 5  # LEFT, RIGHT, BRAKE, ACCELERATE, STRAIGHT
+        self.action_size = 12
         self.eval_net = Model(self.history_length, self.action_size, self.lr)
         self.target_net = Model(self.history_length, self.action_size, self.lr)
         self.replay_buffer = ReplayBuffer(config)

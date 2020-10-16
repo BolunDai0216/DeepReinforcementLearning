@@ -126,9 +126,15 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     reinforce_agent = Agent(env, config)
+<<<<<<< HEAD
     # reinforce_agent.train()
     reinforce_agent.test(
         "reinforce_models/20201015-171524/6000", 15, render=True)
+=======
+    reinforce_agent.train()
+    # reinforce_agent.test(
+    #     "reinforce_models/20201015-164002/10000", 15, render=True)
+>>>>>>> 1f82deb5531b6c077a313b44a627b97b2c7a7159
 
 
 if __name__ == "__main__":
