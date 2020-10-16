@@ -53,14 +53,18 @@ class DQNAgent:
         self.lr = config.lr
         self.dqn = DQN(config, self.env)
         self.epsilon = config.epsilon
+        self.epsilon_decay = config.epsilon_decay
         self.iter_num = config.iter_num
         self.batch_size = config.batch_size
         self.gamma = config.gamma
         self.stamp = datetime.fromtimestamp(time()).strftime('%Y%m%d-%H%M%S')
         self.max_iter = config.max_iter
+        self.test_iter_num = config.test_iter_num
         self.log_freq = config.log_freq
         self.target_update_freq = config.target_update_freq
         self.window_close_freq = config.window_close_freq
+        self.epsilon_true = self.epsilon
+        self.polyak_constant = config.polyak_constant
 
     def burn_in_memory(self):
         # Initialize your replay memory with a burn_in number of episodes / transitions.
@@ -130,11 +134,14 @@ class DQNAgent:
         action = get_action(action_num)
         return action, action_num
 
-    def train(self):
+    def train(self, filename=None):
+        if filename is not None:
+            self.dqn.eval_net.load(filename)
+            
         self.burn_in_memory()
         train_log_dir = 'logs/gradient_tape/' + self.stamp + '/train'
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-        self.env.viewer = None
+        reward_log = []
 
         # Assign eval_net weights to target_net
         self.dqn.target_net.net.set_weights(
@@ -144,24 +151,45 @@ class DQNAgent:
             cummulative_reward = 0
             is_terminal = False
             current_state = self.env.reset()
-            self.epsilon_true = self.epsilon - \
-                (self.epsilon - 0.01) * episode / (self.iter_num * 1.0)
-
+            if self.epsilon_true > 0.1:
+                self.epsilon_true *= self.epsilon_decay
+            
             # Initialize history
             gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
             state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
             state_memory = np.expand_dims(state_memory, axis=0)
 
             step_num = 0
+            negative_reward_counter = 0
 
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
                 action, action_num = self.epsilon_greedy_policy(q_values)
-                next_state, reward, is_terminal, _ = self.env.step(action)
+                
+                # Make action change less frequent
+                for _ in range(3):
+                    next_state, reward, is_terminal, _ = self.env.step(action)
+                    
+                    step_num += 1
+                    cummulative_reward += reward
+                    if is_terminal:
+                        break
+                    
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
                 next_state_memory = np.concatenate(
                     (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
-
+                
+                # Attempt to not include to many negative examples
+                if step_num > 400:
+                    if reward < 0:
+                        negative_reward_counter += 1
+                    if negative_reward_counter >= 25:
+                        break
+                        
+                # Encourage driving with full gas in right direction
+                if action[1] == 1 and action[2] == 0:
+                    reward *= 1.5
+                        
                 sample = {
                     "state": state_memory,
                     "next_state": next_state_memory,
@@ -171,21 +199,22 @@ class DQNAgent:
                 }
 
                 self.dqn.replay_buffer.add_sample(sample)
-
-                cummulative_reward += reward
                 current_state = next_state
                 state_memory = next_state_memory
-
-                step_num += 1
+                
                 if step_num >= self.max_iter:
                     break
-            
-
-            loss_value = self.optimize_step()
+                    
+            loss_value = 0
+            optimize_runs = 2
+            for i in range(optimize_runs):
+                loss_value_tmp = self.optimize_step()
+                loss_value += loss_value_tmp / optimize_runs
+            reward_log.append(cummulative_reward)
 
             print("Iteration: {}, Reward: {}, Loss: {}, Replay Buffer Size: {}".format(
                 episode, cummulative_reward, loss_value, len(self.dqn.replay_buffer.buffer)))
-            
+
             with train_summary_writer.as_default():
                 tf.summary.scalar('loss', loss_value, step=episode)
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
@@ -193,7 +222,15 @@ class DQNAgent:
             # Deals with memory leak
             if (episode + 1) % self.window_close_freq == 0:
                 self.env.close()
-
+            
+            # Polyak Averaging
+#             eval_weights = self.dqn.eval_net.net.get_weights()
+#             target_weights = self.dqn.target_net.net.get_weights()
+#             update_weights = []
+#             for eval_weight, target_weight in zip(eval_weights, target_weights):
+#                 update_weights.append(self.polyak_constant*eval_weight + (1-self.polyak_constant)*target_weight)
+#             self.dqn.target_net.net.set_weights(update_weights)
+            
             if (episode + 1) % self.target_update_freq == 0:
                 self.dqn.target_net.net.set_weights(
                     self.dqn.eval_net.net.get_weights())
@@ -202,7 +239,9 @@ class DQNAgent:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
                 self.dqn.eval_net.save(filename)
                 print("Model saved at {}".format(filename))
-
+           
+        numpy.savetxt("logs/reward/reward_{}.csv".format(self.stamp), np.array(reward_log), delimiter=",")
+        
     def optimize_step(self):
         batch = self.dqn.replay_buffer.get_samples(self.batch_size)
         # Shape [batch_size, image_h, image_w, history_length]
@@ -240,8 +279,59 @@ class DQNAgent:
             loss_value, self.dqn.eval_net.net.trainable_weights)
         self.dqn.eval_net.optimizer.apply_gradients(
             zip(grads, self.dqn.eval_net.net.trainable_weights))
+        
         return loss_value
+    
+    def test(self, filename):
+        test_log_dir = 'logs/gradient_tape/' + self.stamp + '/test'
+        test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+        
+        self.dqn.eval_net.load(filename)
+        
+        for episode in range(self.test_iter_num):
+            cummulative_reward = 0
+            is_terminal = False
+            current_state = self.env.reset()
+            
+            # Initialize history
+            gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
+            state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
+            state_memory = np.expand_dims(state_memory, axis=0)
 
+            step_num = 0
+            
+            while not is_terminal:
+                q_values = self.dqn.eval_net.net(state_memory)
+                action, action_num = self.epsilon_greedy_policy(q_values)
+                
+                # Make action change less frequent
+                for _ in range(3):
+                    next_state, reward, is_terminal, _ = self.env.step(action)
+                    
+                    step_num += 1
+                    cummulative_reward += reward
+                    if is_terminal:
+                        break
+                    
+                gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
+                next_state_memory = np.concatenate(
+                    (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
+                
+                current_state = next_state
+                state_memory = next_state_memory
+                
+                if step_num >= self.max_iter:
+                    break
+            
+            print("Iteration: {}, Reward: {}".format(episode, cummulative_reward))
+
+            with test_summary_writer.as_default():
+                tf.summary.scalar('reward', cummulative_reward, step=episode)
+
+            # Deals with memory leak
+            if (episode + 1) % self.window_close_freq == 0:
+                self.env.close()
+                    
 
 def main():
     tf.debugging.set_log_device_placement(True)
@@ -256,7 +346,8 @@ def main():
             config = json.load(json_file)
         config = munch.munchify(config)
         agent = DQNAgent(config, env)
-        agent.train()
+#         agent.train("models/20201016-113818/9900")
+        agent.test("models/20201016-113818/9900")
 
 
 if __name__ == "__main__":
