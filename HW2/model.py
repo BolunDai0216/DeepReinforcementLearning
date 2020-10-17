@@ -54,7 +54,7 @@ class DQN:
         self.history_length = config.history_length
         self.lr = config.lr
         self.env = env
-        self.action_size = 12
+        self.action_size = 5
         self.eval_net = Model(self.history_length, self.action_size, self.lr)
         self.target_net = Model(self.history_length, self.action_size, self.lr)
         self.replay_buffer = ReplayBuffer(config)
