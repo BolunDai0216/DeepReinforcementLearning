@@ -1,11 +1,11 @@
 {
-    "history_length": 5,
+    "history_length": 3,
     "lr": 1e-3,
     "epsilon": 1.0,
     "epsilon_decay": 0.985,
     "max_buffer_size": 5000,
     "burn_in_size": 200,
-    "iter_num": 100000,
+    "iter_num": 10000,
     "gamma": 0.95,
     "batch_size": 64,
     "max_iter": 1000,

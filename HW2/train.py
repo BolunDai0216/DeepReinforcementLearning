@@ -81,7 +81,10 @@ class DQNAgent:
                 action_num = np.random.choice(
                     np.arange(self.dqn.action_size), 1, replace=False)[0]
                 action = get_action(action_num)
-                next_state, reward, is_terminal, _ = self.env.step(action)
+                
+                for _ in range(3):
+                    next_state, reward, is_terminal, _ = self.env.step(action)
+                    
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
                 next_state_memory = np.concatenate(
                     (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
@@ -167,28 +170,34 @@ class DQNAgent:
                 action, action_num = self.epsilon_greedy_policy(q_values)
                 
                 # Make action change less frequent
+                r_counter = 0
                 for _ in range(3):
                     next_state, reward, is_terminal, _ = self.env.step(action)
                     
                     step_num += 1
                     cummulative_reward += reward
+                    r_counter += reward
                     if is_terminal:
                         break
                     
                 gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
                 next_state_memory = np.concatenate(
                     (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
+                loss_value_tmp = self.optimize_step()
                 
                 # Attempt to not include to many negative examples
                 if step_num > 400:
-                    if reward < 0:
+                    if r_counter < 0:
                         negative_reward_counter += 1
                     if negative_reward_counter >= 25:
                         break
                         
+                if cummulative_reward < 0:
+                    break
+                        
                 # Encourage driving with full gas in right direction
-                if action[1] == 1 and action[2] == 0:
-                    reward *= 1.5
+#                 if action[1] == 1 and action[2] == 0:
+#                     reward *= 1.5
                         
                 sample = {
                     "state": state_memory,
@@ -206,10 +215,10 @@ class DQNAgent:
                     break
                     
             loss_value = 0
-            optimize_runs = 2
-            for i in range(optimize_runs):
-                loss_value_tmp = self.optimize_step()
-                loss_value += loss_value_tmp / optimize_runs
+#             optimize_runs = 10
+#             for i in range(optimize_runs):
+#                 loss_value_tmp = self.optimize_step()
+#                 loss_value += loss_value_tmp / optimize_runs
             reward_log.append(cummulative_reward)
 
             print("Iteration: {}, Reward: {}, Loss: {}, Replay Buffer Size: {}".format(
@@ -224,23 +233,23 @@ class DQNAgent:
                 self.env.close()
             
             # Polyak Averaging
-#             eval_weights = self.dqn.eval_net.net.get_weights()
-#             target_weights = self.dqn.target_net.net.get_weights()
-#             update_weights = []
-#             for eval_weight, target_weight in zip(eval_weights, target_weights):
-#                 update_weights.append(self.polyak_constant*eval_weight + (1-self.polyak_constant)*target_weight)
-#             self.dqn.target_net.net.set_weights(update_weights)
+            eval_weights = self.dqn.eval_net.net.get_weights()
+            target_weights = self.dqn.target_net.net.get_weights()
+            update_weights = []
+            for eval_weight, target_weight in zip(eval_weights, target_weights):
+                update_weights.append(self.polyak_constant*eval_weight + (1-self.polyak_constant)*target_weight)
+            self.dqn.target_net.net.set_weights(update_weights)
             
-            if (episode + 1) % self.target_update_freq == 0:
-                self.dqn.target_net.net.set_weights(
-                    self.dqn.eval_net.net.get_weights())
+#             if (episode + 1) % self.target_update_freq == 0:
+#                 self.dqn.target_net.net.set_weights(
+#                     self.dqn.eval_net.net.get_weights())
 
             if (episode + 1) % self.log_freq == 0:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
                 self.dqn.eval_net.save(filename)
                 print("Model saved at {}".format(filename))
            
-        numpy.savetxt("logs/reward/reward_{}.csv".format(self.stamp), np.array(reward_log), delimiter=",")
+        numpy.savetxt("./logs/reward/reward_{}.csv".format(self.stamp), np.array(reward_log), delimiter=",")
         
     def optimize_step(self):
         batch = self.dqn.replay_buffer.get_samples(self.batch_size)
@@ -307,7 +316,7 @@ class DQNAgent:
                 # Make action change less frequent
                 for _ in range(3):
                     next_state, reward, is_terminal, _ = self.env.step(action)
-                    
+
                     step_num += 1
                     cummulative_reward += reward
                     if is_terminal:
@@ -346,8 +355,8 @@ def main():
             config = json.load(json_file)
         config = munch.munchify(config)
         agent = DQNAgent(config, env)
-#         agent.train("models/20201016-113818/9900")
-        agent.test("models/20201016-113818/9900")
+        agent.train()
+#         agent.test("models/20201016-113818/9900")
 
 
 if __name__ == "__main__":
