@@ -18,6 +18,7 @@ class Agent:
         self.stamp = datetime.fromtimestamp(time()).strftime('%Y%m%d-%H%M%S')
         self.max_iter = config.max_iter
         self.log_freq = config.log_freq
+        self.max_test_iter = config.max_test_iter
 
     def train(self):
         train_log_dir = 'logs/reinforce/' + self.stamp + '/train'
@@ -111,7 +112,7 @@ class Agent:
                 current_state = next_state
                 cummulative_reward += reward
                 step_num += 1
-                if step_num >= self.max_iter:
+                if step_num >= self.max_test_iter:
                     break
 
             with test_summary_writer.as_default():
@@ -125,9 +126,15 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     reinforce_agent = Agent(env, config)
+<<<<<<< HEAD
+    # reinforce_agent.train()
+    reinforce_agent.test(
+        "reinforce_models/20201015-171524/6000", 15, render=True)
+=======
     reinforce_agent.train()
     # reinforce_agent.test(
     #     "reinforce_models/20201015-164002/10000", 15, render=True)
+>>>>>>> 1f82deb5531b6c077a313b44a627b97b2c7a7159
 
 
 if __name__ == "__main__":
