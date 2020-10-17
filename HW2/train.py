@@ -9,33 +9,33 @@ from datetime import datetime
 from time import time
 import matplotlib.pyplot as plt
 
-# When running in a headless server use the command:
+# When using a headless server, run the command:
 # xvfb-run python3 train.py
 
 
 def get_action(action_num):
-    action_space    = [
-            [-1, 1, 0.2], [0, 1, 0.2], [1, 1, 0.2], # Action Space Structure
-            [-1, 1,   0], [0, 1,   0], [1, 1,   0], #        (Steering Wheel, Gas, Break)
-            [-1, 0, 0.2], [0, 0, 0.2], [1, 0, 0.2], # Range        -1~1       0~1   0~1
-            [-1, 0,   0], [0, 0,   0], [1, 0,   0]
-        ]
-    action = np.array(action_space[action_num])
-#     if action_num == 0:
-#         # LEFT
-#         action = np.array([-1.0, 0.0, 0.0])
-#     elif action_num == 1:
-#         # RIGHT
-#         action = np.array([1.0, 0.0, 0.0])
-#     elif action_num == 2:
-#         # ACCELERATE
-#         action = np.array([0.0, 1.0, 0.0])
-#     elif action_num == 3:
-#         # BRAKE
-#         action = np.array([0.0, 0.0, 0.2])
-#     elif action_num == 4:
-#         # STRAIGHT
-#         action = np.array([0.0, 0.0, 0.0])
+#     action_space    = [
+#             [-1, 1, 0.2], [0, 1, 0.2], [1, 1, 0.2], # Action Space Structure
+#             [-1, 1,   0], [0, 1,   0], [1, 1,   0], #        (Steering Wheel, Gas, Break)
+#             [-1, 0, 0.2], [0, 0, 0.2], [1, 0, 0.2], # Range        -1~1       0~1   0~1
+#             [-1, 0,   0], [0, 0,   0], [1, 0,   0]
+#         ]
+#     action = np.array(action_space[action_num])
+    if action_num == 0:
+        # LEFT
+        action = np.array([-1.0, 0.0, 0.0])
+    elif action_num == 1:
+        # RIGHT
+        action = np.array([1.0, 0.0, 0.0])
+    elif action_num == 2:
+        # ACCELERATE
+        action = np.array([0.0, 1.0, 0.0])
+    elif action_num == 3:
+        # BRAKE
+        action = np.array([0.0, 0.0, 0.2])
+    elif action_num == 4:
+        # STRAIGHT
+        action = np.array([0.0, 0.0, 0.0])
     return action
 
 
@@ -65,29 +65,23 @@ class DQNAgent:
         self.window_close_freq = config.window_close_freq
         self.epsilon_true = self.epsilon
         self.polyak_constant = config.polyak_constant
+        self.test_iter = 0
 
     def burn_in_memory(self):
         # Initialize your replay memory with a burn_in number of episodes / transitions.
         if not self.dqn.replay_buffer.is_burn_in:
             print("Burning in memory ...")
             current_state = self.env.reset()
-
-            # Initialize history
-            gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
-            state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
-            state_memory = np.expand_dims(state_memory, axis=0)
+            
+            state_memory = self.get_state_memory(current_state, init=True)
 
             for episode in range(self.dqn.replay_buffer.burn_in_size):
                 action_num = np.random.choice(
                     np.arange(self.dqn.action_size), 1, replace=False)[0]
                 action = get_action(action_num)
                 
-                for _ in range(3):
-                    next_state, reward, is_terminal, _ = self.env.step(action)
-                    
-                gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
-                next_state_memory = np.concatenate(
-                    (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
+                next_state, reward, is_terminal, _ = self.env.step(action)
+                next_state_memory = self.get_state_memory(next_state, state_memory=state_memory, init=False)
 
                 # Append sample to replay buffer
                 sample = {
@@ -101,13 +95,7 @@ class DQNAgent:
 
                 if is_terminal:
                     current_state = self.env.reset()
-
-                    # Initialize history
-                    gray_state = np.expand_dims(
-                        rgb2gray(current_state), axis=2)
-                    state_memory = np.tile(
-                        gray_state, (1, 1, self.dqn.history_length))
-                    state_memory = np.expand_dims(state_memory, axis=0)
+                    state_memory = self.get_state_memory(current_state, init=True)
                 else:
                     current_state = next_state
                     state_memory = next_state_memory
@@ -129,6 +117,7 @@ class DQNAgent:
             action = get_action(action_num)
         else:
             action, action_num = self.greedy_policy(q_values)
+#             print("greedy action; {}".format(action_num))
         return action, action_num
 
     def greedy_policy(self, q_values):
@@ -137,7 +126,7 @@ class DQNAgent:
         action = get_action(action_num)
         return action, action_num
 
-    def train(self, filename=None):
+    def train(self, render=False, filename=None):
         if filename is not None:
             self.dqn.eval_net.load(filename)
             
@@ -157,47 +146,34 @@ class DQNAgent:
             if self.epsilon_true > 0.1:
                 self.epsilon_true *= self.epsilon_decay
             
-            # Initialize history
-            gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
-            state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
-            state_memory = np.expand_dims(state_memory, axis=0)
-
+            state_memory = self.get_state_memory(current_state, init=True)
             step_num = 0
             negative_reward_counter = 0
 
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
                 action, action_num = self.epsilon_greedy_policy(q_values)
+                next_state, reward, is_terminal, _ = self.env.step(action)
                 
-                # Make action change less frequent
-                r_counter = 0
-                for _ in range(3):
-                    next_state, reward, is_terminal, _ = self.env.step(action)
-                    
-                    step_num += 1
-                    cummulative_reward += reward
-                    r_counter += reward
-                    if is_terminal:
-                        break
-                    
-                gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
-                next_state_memory = np.concatenate(
-                    (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
-                loss_value_tmp = self.optimize_step()
+                if render:
+                    self.env.render()
+
+                step_num += 1
+                cummulative_reward += reward
+                
+                next_state_memory = self.get_state_memory(next_state, state_memory=state_memory, init=False)
+                if len(self.dqn.replay_buffer.buffer) > self.batch_size:
+                    loss_value_tmp = self.optimize_step()
                 
                 # Attempt to not include to many negative examples
-                if step_num > 400:
-                    if r_counter < 0:
+                if step_num > 300:
+                    if reward < 0:
                         negative_reward_counter += 1
                     if negative_reward_counter >= 25:
                         break
                         
                 if cummulative_reward < 0:
                     break
-                        
-                # Encourage driving with full gas in right direction
-#                 if action[1] == 1 and action[2] == 0:
-#                     reward *= 1.5
                         
                 sample = {
                     "state": state_memory,
@@ -221,11 +197,11 @@ class DQNAgent:
 #                 loss_value += loss_value_tmp / optimize_runs
             reward_log.append(cummulative_reward)
 
-            print("Iteration: {}, Reward: {}, Loss: {}, Replay Buffer Size: {}".format(
-                episode, cummulative_reward, loss_value, len(self.dqn.replay_buffer.buffer)))
+            print("Iteration: {}, Reward: {}, Episode Length: {}, Replay Buffer Size: {}".format(
+                episode, cummulative_reward, step_num, len(self.dqn.replay_buffer.buffer)))
 
             with train_summary_writer.as_default():
-                tf.summary.scalar('loss', loss_value, step=episode)
+                tf.summary.scalar('episode length', step_num, step=episode)
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
 
             # Deals with memory leak
@@ -248,14 +224,16 @@ class DQNAgent:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
                 self.dqn.eval_net.save(filename)
                 print("Model saved at {}".format(filename))
+                
+                self.test()
            
         numpy.savetxt("./logs/reward/reward_{}.csv".format(self.stamp), np.array(reward_log), delimiter=",")
         
     def optimize_step(self):
         batch = self.dqn.replay_buffer.get_samples(self.batch_size)
         # Shape [batch_size, image_h, image_w, history_length]
-        batch_state_memory = np.array([sample["state"] for sample in batch])[
-            :, 0, :, :, :]
+        batch_state_memory = np.array(
+            [sample["state"] for sample in batch])[:, 0, :, :, :]
         # Shape [batch_size, image_h, image_w, history_length]
         batch_next_state_memory = np.array(
             [sample["next_state"] for sample in batch])[:, 0, :, :, :]
@@ -291,57 +269,58 @@ class DQNAgent:
         
         return loss_value
     
-    def test(self, filename):
+    def test(self, filename=None):
         test_log_dir = 'logs/gradient_tape/' + self.stamp + '/test'
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
         
-        self.dqn.eval_net.load(filename)
+        if filename is not None:
+            self.dqn.eval_net.load(filename)
         
         for episode in range(self.test_iter_num):
             cummulative_reward = 0
             is_terminal = False
             current_state = self.env.reset()
             
-            # Initialize history
-            gray_state = np.expand_dims(rgb2gray(current_state), axis=2)
-            state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
-            state_memory = np.expand_dims(state_memory, axis=0)
-
-            step_num = 0
+            state_memory = self.get_state_memory(current_state, init=True)
             
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action, action_num = self.epsilon_greedy_policy(q_values)
+                action, action_num = self.greedy_policy(q_values)
                 
-                # Make action change less frequent
-                for _ in range(3):
-                    next_state, reward, is_terminal, _ = self.env.step(action)
+                next_state, reward, is_terminal, _ = self.env.step(action)
 
-                    step_num += 1
-                    cummulative_reward += reward
-                    if is_terminal:
-                        break
-                    
-                gray_next_state = np.expand_dims(rgb2gray(next_state), axis=2)
-                next_state_memory = np.concatenate(
-                    (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
+                self.test_iter += 1
+                cummulative_reward += reward
                 
+                next_state_memory = self.get_state_memory(next_state, state_memory=state_memory, init=False)
                 current_state = next_state
                 state_memory = next_state_memory
                 
                 if step_num >= self.max_iter:
                     break
             
-            print("Iteration: {}, Reward: {}".format(episode, cummulative_reward))
+            print("Testing ... Iteration: {}, Reward: {}".format(episode, cummulative_reward))
 
             with test_summary_writer.as_default():
-                tf.summary.scalar('reward', cummulative_reward, step=episode)
+                tf.summary.scalar('reward', cummulative_reward, step=self.test_iter)
 
             # Deals with memory leak
             if (episode + 1) % self.window_close_freq == 0:
                 self.env.close()
-                    
-
+    
+    def get_state_memory(self, state, state_memory=None, init=False):
+        if init and state_memory is None:
+            # Initialize history
+            gray_state = np.expand_dims(rgb2gray(state), axis=2)
+            state_memory = np.tile(gray_state, (1, 1, self.dqn.history_length))
+            state_memory = np.expand_dims(state_memory, axis=0)
+            return state_memory
+        else:
+            gray_next_state = np.expand_dims(rgb2gray(state), axis=2)
+            next_state_memory = np.concatenate(
+                (state_memory[:, :, :, 1:], np.expand_dims(gray_next_state, axis=0)), axis=3)
+            return next_state_memory
+        
 def main():
     tf.debugging.set_log_device_placement(True)
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -355,8 +334,8 @@ def main():
             config = json.load(json_file)
         config = munch.munchify(config)
         agent = DQNAgent(config, env)
-        agent.train()
-#         agent.test("models/20201016-113818/9900")
+        agent.train(render=True)
+#         agent.test(filename="models/20201016-113818/9900")
 
 
 if __name__ == "__main__":
