@@ -231,8 +231,8 @@ class DQNAgent:
 
                 self.test()
 
-        numpy.savetxt("./logs/reward/reward_{}.csv".format(self.stamp),
-                      np.array(reward_log), delimiter=",")
+        np.savetxt("./logs/reward/reward_{}.csv".format(self.stamp),
+                   np.array(reward_log), delimiter=",")
 
     def optimize_step(self):
         batch = self.dqn.replay_buffer.get_samples(self.batch_size)
@@ -290,9 +290,10 @@ class DQNAgent:
 
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action, action_num = self.greedy_policy(q_values)
+                action, _ = self.greedy_policy(q_values)
 
                 next_state, reward, is_terminal, _ = self.env.step(action)
+                self.env.render()
 
                 self.test_iter += 1
                 cummulative_reward += reward
@@ -302,7 +303,7 @@ class DQNAgent:
                 current_state = next_state
                 state_memory = next_state_memory
 
-                if step_num >= self.max_iter:
+                if self.test_iter % self.max_iter == 0:
                     break
 
             print("Testing ... Iteration: {}, Reward: {}".format(
@@ -331,20 +332,20 @@ class DQNAgent:
 
 
 def main():
-    tf.debugging.set_log_device_placement(True)
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
-    tf.config.experimental.set_memory_growth(gpus[2], True)
+    # tf.debugging.set_log_device_placement(True)
+    # gpus = tf.config.experimental.list_physical_devices('GPU')
+    # tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
+    # tf.config.experimental.set_memory_growth(gpus[2], True)
 
-    with tf.device('/device:GPU:2'):
-        env = gym.make('CarRacing-v0').unwrapped
-        config_path = 'config.json'
-        with open(config_path) as json_file:
-            config = json.load(json_file)
-        config = munch.munchify(config)
-        agent = DQNAgent(config, env)
-        # agent.train(render=True)
-        agent.test(filename="models/20201016-113818/9900")
+    # with tf.device('/device:GPU:2'):
+    env = gym.make('CarRacing-v0').unwrapped
+    config_path = 'config.json'
+    with open(config_path) as json_file:
+        config = json.load(json_file)
+    config = munch.munchify(config)
+    agent = DQNAgent(config, env)
+    # agent.train(render=True)
+    agent.test(filename="models/4000")
 
 
 if __name__ == "__main__":
