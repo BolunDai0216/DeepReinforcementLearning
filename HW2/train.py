@@ -269,9 +269,10 @@ class DQNAgent:
         
         return loss_value
     
-    def test(self, filename=None):
+    def test(self, render=False, filename=None):
         test_log_dir = 'logs/gradient_tape/' + self.stamp + '/test'
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+        self.epsilon_true = 0.1
         
         if filename is not None:
             self.dqn.eval_net.load(filename)
@@ -285,7 +286,10 @@ class DQNAgent:
             
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action, action_num = self.greedy_policy(q_values)
+                action, action_num = self.epsilon_greedy_policy(q_values)
+                
+                if render:
+                    self.env.render()
                 
                 next_state, reward, is_terminal, _ = self.env.step(action)
 
@@ -296,7 +300,7 @@ class DQNAgent:
                 current_state = next_state
                 state_memory = next_state_memory
                 
-                if step_num >= self.max_iter:
+                if self.test_iter % self.max_iter == 0:
                     break
             
             print("Testing ... Iteration: {}, Reward: {}".format(episode, cummulative_reward))
@@ -334,8 +338,8 @@ def main():
             config = json.load(json_file)
         config = munch.munchify(config)
         agent = DQNAgent(config, env)
-        agent.train(render=True)
-#         agent.test(filename="models/20201016-113818/9900")
+#         agent.train()
+        agent.test(render=True, filename="models/20201017-090041/15400")
 
 
 if __name__ == "__main__":
