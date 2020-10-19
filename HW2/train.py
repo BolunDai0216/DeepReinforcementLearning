@@ -277,6 +277,7 @@ class DQNAgent:
     def test(self, filename=None):
         test_log_dir = 'logs/gradient_tape/' + self.stamp + '/test'
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+        self.epsilon_true = 0.1
 
         if filename is not None:
             self.dqn.eval_net.load(filename)
@@ -290,7 +291,7 @@ class DQNAgent:
 
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action, _ = self.greedy_policy(q_values)
+                action, _ = self.epsilon_greedy_policy(q_values)
 
                 next_state, reward, is_terminal, _ = self.env.step(action)
                 self.env.render()
@@ -345,7 +346,7 @@ def main():
     config = munch.munchify(config)
     agent = DQNAgent(config, env)
     # agent.train(render=True)
-    agent.test(filename="models/4000")
+    agent.test(filename="models/15200")
 
 
 if __name__ == "__main__":
