@@ -1,5 +1,7 @@
 ## DQN
-A double DQN model is used to solve the OpenAI Gym's `CarRacing-v0` environment. The double DQN algorithm is given in the [DQN Nature Paper](https://www.nature.com/articles/nature14236) and the implementation is inspired by [Andy Wu's repo](https://github.com/andywu0913/OpenAI-GYM-CarRacing-DQN). Some tricks are used to make the algorithm behave better:
+A double DQN model is used to solve OpenAI Gym's `CarRacing-v0` environment. The double DQN algorithm is given in the [DQN Nature Paper](https://www.nature.com/articles/nature14236) and this implementation is inspired by [Andy Wu's repo](https://github.com/andywu0913/OpenAI-GYM-CarRacing-DQN). 
+
+Some tricks are applied to enhance performance:
 * Each episode is terminated once the cumulative reward is below 0;
 * After 300 time steps, if negative rewards are encountered more than 25 instances the episode is terminated;
 * The episode is terminated after 1000 episodes;
@@ -10,7 +12,7 @@ A double DQN model is used to solve the OpenAI Gym's `CarRacing-v0` environment.
 It can be seen that the test performance is superior to the training performance, this is probably due to using an epsilon-greedy policy in training. A video recording one of the test runs can be found [here](https://www.youtube.com/watch?v=KQclb-CsLTE).
 
 ## REINFORCE
-A REINFORCE model is used to solve the OpenAI Gym's `CartPole-v1` environment. During training, the episode length is set to be 1e4 time steps while in testing the episode length is 1e3. 
+A REINFORCE model is used to solve OpenAI Gym's `CartPole-v1` environment. During training, the episode length is set to be 1e4 time steps while in testing the episode length is 1e3. 
 
 ### REINFORCE performance
 ![REINFORCE Performance](https://github.com/BolunDai0216/DeepReinforcementLearning/blob/main/HW2/img/cartpole.png)
