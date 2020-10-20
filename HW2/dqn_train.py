@@ -1,7 +1,7 @@
 import tensorflow as tf
 import gym
 from pdb import set_trace
-from model import DQN
+from dqn_model import DQN
 import json
 import munch
 import numpy as np
@@ -351,7 +351,7 @@ def main():
         env = gym.make('CarRacing-v0')
         if recording:
             env = gym.wrappers.Monitor(env, "recording", force=True)
-        config_path = 'config.json'
+        config_path = 'dqn_config.json'
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
