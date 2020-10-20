@@ -112,8 +112,11 @@ class Agent:
                 current_state = next_state
                 cummulative_reward += reward
                 step_num += 1
-                if step_num >= self.max_test_iter:
+
+                if step_num >= self.max_iter:
                     break
+
+            self.env.close()
 
             with test_summary_writer.as_default():
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
@@ -121,6 +124,7 @@ class Agent:
 
 def main():
     env = gym.make("CartPole-v1").unwrapped
+    env = gym.wrappers.Monitor(env, "reinforce_recording", force=True)
     config_path = 'reinforce_config.json'
     with open(config_path) as json_file:
         config = json.load(json_file)
@@ -128,7 +132,7 @@ def main():
     reinforce_agent = Agent(env, config)
     # reinforce_agent.train()
     reinforce_agent.test(
-        "reinforce_models/20201015-171524/6000", 15, render=True)
+        "reinforce_models/20201015-171524/6000", 20, render=False)
 
 
 if __name__ == "__main__":

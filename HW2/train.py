@@ -339,7 +339,7 @@ def main():
     # tf.config.experimental.set_memory_growth(gpus[2], True)
 
     # with tf.device('/device:GPU:2'):
-    env = gym.make('CarRacing-v0').unwrapped
+    env = gym.make('CarRacing-v0')
     config_path = 'config.json'
     with open(config_path) as json_file:
         config = json.load(json_file)
