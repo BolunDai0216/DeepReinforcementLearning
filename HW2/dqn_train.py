@@ -13,30 +13,35 @@ import matplotlib.pyplot as plt
 # xvfb-run python3 train.py
 
 
-def get_action(action_num):
-    #     action_space    = [
-    #             [-1, 1, 0.2], [0, 1, 0.2], [1, 1, 0.2], # Action Space Structure
-    #             [-1, 1,   0], [0, 1,   0], [1, 1,   0], #        (Steering Wheel, Gas, Break)
-    #             [-1, 0, 0.2], [0, 0, 0.2], [1, 0, 0.2], # Range        -1~1       0~1   0~1
-    #             [-1, 0,   0], [0, 0,   0], [1, 0,   0]
-    #         ]
-    #     action = np.array(action_space[action_num])
-    if action_num == 0:
-        # LEFT
-        action = np.array([-1.0, 0.0, 0.0])
-    elif action_num == 1:
-        # RIGHT
-        action = np.array([1.0, 0.0, 0.0])
-    elif action_num == 2:
-        # ACCELERATE
-        action = np.array([0.0, 1.0, 0.0])
-    elif action_num == 3:
-        # BRAKE
-        action = np.array([0.0, 0.0, 0.2])
-    elif action_num == 4:
-        # STRAIGHT
-        action = np.array([0.0, 0.0, 0.0])
-    return action
+def get_action(action_num, mixed=False):
+    if mixed:
+        action_space = [
+            [-1, 1, 0.2], [0, 1, 0.2], [1, 1, 0.2],  # Action Space Structure
+            # (Steering Wheel, Gas, Break)
+            [-1, 1,   0], [0, 1,   0], [1, 1,   0],
+            # Range        -1~1       0~1   0~1
+            [-1, 0, 0.2], [0, 0, 0.2], [1, 0, 0.2],
+            [-1, 0,   0], [0, 0,   0], [1, 0,   0]
+        ]
+        action = np.array(action_space[action_num])
+        return action
+    else:
+        if action_num == 0:
+            # LEFT
+            action = np.array([-1.0, 0.0, 0.0])
+        elif action_num == 1:
+            # RIGHT
+            action = np.array([1.0, 0.0, 0.0])
+        elif action_num == 2:
+            # ACCELERATE
+            action = np.array([0.0, 1.0, 0.0])
+        elif action_num == 3:
+            # BRAKE
+            action = np.array([0.0, 0.0, 0.2])
+        elif action_num == 4:
+            # STRAIGHT
+            action = np.array([0.0, 0.0, 0.0])
+        return action
 
 
 def rgb2gray(rgb):
@@ -194,10 +199,11 @@ class DQNAgent:
                     break
 
             loss_value = 0
-#             optimize_runs = 10
-#             for i in range(optimize_runs):
-#                 loss_value_tmp = self.optimize_step()
-#                 loss_value += loss_value_tmp / optimize_runs
+            optimize_runs = 10
+            for i in range(optimize_runs):
+                if len(self.dqn.replay_buffer.buffer) > self.batch_size:
+                    loss_value_tmp = self.optimize_step()
+                loss_value += loss_value_tmp / optimize_runs
             reward_log.append(cummulative_reward)
 
             print("Iteration: {}, Reward: {}, Episode Length: {}, Replay Buffer Size: {}".format(
@@ -219,10 +225,6 @@ class DQNAgent:
                 update_weights.append(
                     self.polyak_constant*eval_weight + (1-self.polyak_constant)*target_weight)
             self.dqn.target_net.net.set_weights(update_weights)
-
-#             if (episode + 1) % self.target_update_freq == 0:
-#                 self.dqn.target_net.net.set_weights(
-#                     self.dqn.eval_net.net.get_weights())
 
             if (episode + 1) % self.log_freq == 0:
                 filename = 'models/{}/{}'.format(self.stamp, episode + 1)
@@ -274,7 +276,7 @@ class DQNAgent:
 
         return loss_value
 
-    def test(self, filename=None):
+    def test(self, render=False, filename=None):
         test_log_dir = 'logs/gradient_tape/' + self.stamp + '/test'
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
         self.epsilon_true = 0.1
@@ -286,26 +288,31 @@ class DQNAgent:
             cummulative_reward = 0
             is_terminal = False
             current_state = self.env.reset()
-
             state_memory = self.get_state_memory(current_state, init=True)
+            step_num = 0
 
             while not is_terminal:
                 q_values = self.dqn.eval_net.net(state_memory)
-                action, _ = self.epsilon_greedy_policy(q_values)
+                action, action_num = self.greedy_policy(q_values)
+
+                if render:
+                    self.env.render()
 
                 next_state, reward, is_terminal, _ = self.env.step(action)
                 self.env.render()
 
-                self.test_iter += 1
                 cummulative_reward += reward
 
                 next_state_memory = self.get_state_memory(
                     next_state, state_memory=state_memory, init=False)
                 current_state = next_state
                 state_memory = next_state_memory
+                step_num += 1
 
-                if self.test_iter % self.max_iter == 0:
+                if step_num % self.max_iter == 0:
                     break
+
+            self.test_iter += 1
 
             print("Testing ... Iteration: {}, Reward: {}".format(
                 episode, cummulative_reward))
@@ -333,20 +340,24 @@ class DQNAgent:
 
 
 def main():
-    # tf.debugging.set_log_device_placement(True)
-    # gpus = tf.config.experimental.list_physical_devices('GPU')
-    # tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
-    # tf.config.experimental.set_memory_growth(gpus[2], True)
+    tf.debugging.set_log_device_placement(True)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[2], True)
 
-    # with tf.device('/device:GPU:2'):
-    env = gym.make('CarRacing-v0')
-    config_path = 'config.json'
-    with open(config_path) as json_file:
-        config = json.load(json_file)
-    config = munch.munchify(config)
-    agent = DQNAgent(config, env)
-    # agent.train(render=True)
-    agent.test(filename="models/15200")
+    recording = True
+
+    with tf.device('/device:GPU:2'):
+        env = gym.make('CarRacing-v0')
+        if recording:
+            env = gym.wrappers.Monitor(env, "recording", force=True)
+        config_path = 'config.json'
+        with open(config_path) as json_file:
+            config = json.load(json_file)
+        config = munch.munchify(config)
+        agent = DQNAgent(config, env)
+        agent.train()
+#         agent.test(render=True, filename="models/20201017-090041/19500")
 
 
 if __name__ == "__main__":
