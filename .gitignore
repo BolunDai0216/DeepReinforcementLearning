@@ -17,6 +17,10 @@ recordings/
 # Tensorboard
 logs/
 
+# Generated Models
+results/
+models/
+data/
 
 # Videos
 recordings/
