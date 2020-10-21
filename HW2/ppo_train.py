@@ -72,9 +72,9 @@ class PPOAgent():
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
 
             if (episode + 1) % self.log_freq == 0:
-                filename_actor = 'ppo_models/{}/{}_actor'.format(
+                filename_actor = 'models/{}/actor_{}'.format(
                     self.stamp, episode + 1)
-                filename_critic = 'ppo_models/{}/{}_critic'.format(
+                filename_critic = 'models/{}/critic_{}'.format(
                     self.stamp, episode + 1)
                 self.ppo.actor.net.save(filename_actor)
                 self.ppo.critic.net.save(filename_critic)
