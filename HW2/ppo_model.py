@@ -32,8 +32,7 @@ class Model:
         l3 = Dense(output_size, activation=activation_func)(l2)
         self.net = tf.keras.Model(inputs=inputs, outputs=l3)
 
-        # Loss and optimizer
-        self.loss = None
+        # Optimizer
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
     def load(self, file_name):
@@ -68,7 +67,6 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
-
     ppo = PPO(config)
 
 

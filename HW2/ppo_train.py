@@ -54,6 +54,7 @@ class PPOAgent:
                     "action": action,
                     "value": value,
                     "log_policy": log_policy,
+                    "is_terminal": is_terminal,
                 }
                 self.ppo.buffer.append(sample)
 
@@ -93,10 +94,13 @@ class PPOAgent:
         episode_state = np.array([sample["state"] for sample in self.ppo.buffer])
         episode_reward = np.array([sample["reward"] for sample in self.ppo.buffer])
         episode_action = np.array([sample["action"] for sample in self.ppo.buffer])
+        episode_is_terminal = np.array(
+            [sample["is_terminal"] for sample in self.ppo.buffer]
+        )
         episode_value = np.array([sample["value"] for sample in self.ppo.buffer])[
             :, 0, 0
         ]
-        episode_log_policy = np.array(
+        episode_log_policy_old = np.array(
             [sample["log_policy"] for sample in self.ppo.buffer]
         )[:, 0]
 
@@ -107,7 +111,7 @@ class PPOAgent:
         # Calculate TD-error of each step, Eq(12) in paper
         episode_delta = (
             episode_reward[:-1]
-            + self.ppo.gamma * episode_value[1:]
+            + self.ppo.gamma * episode_value[1:] * (1 - episode_is_terminal)
             - episode_value[:-1]
         )
         # Get advantage at each step, Eq(11) in paper
@@ -115,6 +119,8 @@ class PPOAgent:
             episode_delta, self.ppo.gamma * self.ppo.lam
         )
         episode_reward_to_go = discount_cumsum(episode_reward, self.ppo.gamma)[:-1]
+        # Make sure the data type aligns
+        episode_reward_to_go = tf.cast(episode_reward_to_go, tf.float32)
 
         # Normalize advantage
         advantage_stats = stats.describe(episode_advantage)
@@ -123,23 +129,30 @@ class PPOAgent:
         normalized_episode_advantage = (
             episode_advantage - advantage_mean
         ) / advantage_std
+        # Make sure the data type aligns
+        normalized_episode_advantage = tf.cast(normalized_episode_advantage, tf.float32)
 
         one_hot_actions = tf.keras.utils.to_categorical(
-            episode_action, self.config.actor_output_size, dtype=np.float32
+            episode_action, self.config.actor_output_size, dtype="float32"
         )
 
         actor_loss_value = 0
         critic_loss_value = 0
 
-        for _ in range(self.config.actor_update_per_iter):
-            actor_loss_value_tmp = self.optimize_actor_step(
+        for i in range(self.config.actor_update_per_iter):
+            actor_loss_value_tmp, kl = self.optimize_actor_step(
                 episode_state,
                 episode_action,
                 normalized_episode_advantage,
-                episode_log_policy,
+                episode_log_policy_old,
                 one_hot_actions,
             )
-            actor_loss_value += actor_loss_value_tmp / self.config.actor_update_per_iter
+            actor_loss_value += actor_loss_value_tmp
+            if kl > 1.5 * self.config.target_kl:
+                break
+
+        actor_loss_value /= i
+
         for _ in range(self.config.critic_update_per_iter):
             critic_loss_value_tmp = self.optimize_critic_step(
                 episode_state, episode_reward_to_go
@@ -149,13 +162,13 @@ class PPOAgent:
             )
         return actor_loss_value, critic_loss_value
 
-    # @tf.function
+    @tf.function
     def optimize_actor_step(
         self,
         episode_state,
         episode_action,
         normalized_episode_advantage,
-        episode_log_policy,
+        log_policy_old,
         one_hot_actions,
     ):
         with tf.GradientTape() as tape:
@@ -163,25 +176,27 @@ class PPOAgent:
             log_probs = tf.math.log(
                 tf.reduce_sum(action_probs * one_hot_actions, axis=1)
             )
-            ratio = tf.exp(log_probs - episode_log_policy)
+            ratio = tf.exp(log_probs - log_policy_old)
+            clip_ratio = tf.cast(self.config.clip_ratio, tf.float32)
+            tf_one = tf.constant(1.0, dtype=tf.float32)
             clipped_advantage = (
-                tf.clip_by_value(
-                    ratio, 1.0 - self.config.clip_ratio, 1.0 + self.config.clip_ratio
-                )
+                tf.clip_by_value(ratio, tf_one - clip_ratio, tf_one + clip_ratio)
                 * normalized_episode_advantage
             )
-            loss_value = tf.minimum(
+            loss_value = -tf.minimum(
                 ratio * normalized_episode_advantage, clipped_advantage
             )
             loss_value = tf.reduce_mean(loss_value)
+
+        kl = tf.reduce_mean(log_probs - log_policy_old)
 
         grads = tape.gradient(loss_value, self.ppo.actor.net.trainable_weights)
         self.ppo.actor.optimizer.apply_gradients(
             zip(grads, self.ppo.actor.net.trainable_weights)
         )
-        return loss_value
+        return loss_value, kl
 
-    # @tf.function
+    @tf.function
     def optimize_critic_step(self, episode_state, episode_reward_to_go):
         with tf.GradientTape() as tape:
             value_estimate = self.ppo.critic.net(episode_state)
@@ -194,8 +209,38 @@ class PPOAgent:
         )
         return 0
 
-    def test(self):
-        pass
+    def test(self, filename, render=False):
+        self.ppo.actor.load(filename)
+        test_log_dir = "logs/ppo/" + self.stamp + "/test"
+        test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
+        for episode in range(self.config.test_iters):
+            cummulative_reward = 0
+            is_terminal = False
+            current_state = self.env.reset()
+            step_num = 0
+
+            while not is_terminal:
+                state = np.expand_dims(current_state, axis=0)
+                action_prob = self.ppo.actor.net(state)
+                action = np.random.choice(
+                    self.env.action_space.n, 1, p=action_prob[0].numpy()
+                )[0]
+                next_state, reward, is_terminal, _ = self.env.step(action)
+                if render:
+                    self.env.render()
+
+                current_state = next_state
+                cummulative_reward += reward
+                step_num += 1
+
+                if step_num >= self.max_iter:
+                    break
+
+            self.env.close()
+
+            with test_summary_writer.as_default():
+                tf.summary.scalar("reward", cummulative_reward, step=episode)
 
 
 def main():
@@ -206,7 +251,8 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     ppo_agent = PPOAgent(config, env)
-    ppo_agent.train()
+    # ppo_agent.train()
+    ppo_agent.test("models/20201021-163523/actor_200/variables/variables")
 
 
 if __name__ == "__main__":
