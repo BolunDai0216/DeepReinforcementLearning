@@ -1,18 +1,19 @@
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
 import json
+
 import munch
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.models import Sequential
 
 
 class Model:
     def __init__(self, action_size, lr=1e-4):
         # Define network
-        inputs = tf.keras.Input(shape=(4, ), name='input')
-        l1 = Dense(32, activation='relu')(inputs)
-        l2 = Dense(32, activation='relu')(l1)
-        l3 = Dense(action_size, activation='softmax')(l2)
+        inputs = tf.keras.Input(shape=(4,), name="input")
+        l1 = Dense(32, activation="relu")(inputs)
+        l2 = Dense(32, activation="relu")(l1)
+        l3 = Dense(action_size, activation="softmax")(l2)
         self.net = tf.keras.Model(inputs=inputs, outputs=l3)
 
         # Loss and optimizer
