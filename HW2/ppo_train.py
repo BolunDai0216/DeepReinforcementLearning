@@ -31,15 +31,20 @@ class PPOAgent():
             step_num = 0
 
             while not is_terminal:
-                action_prob = self.ppo.actor.net(
-                    np.expand_dims(current_state, axis=0))
+                # Get action
+                state = np.expand_dims(current_state, axis=0)
+                action_prob = self.ppo.actor.net(state)
                 action = np.random.choice(
                     self.env.action_space.n, 1, p=action_prob[0].numpy())[0]
+
+                # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
-                value = self.ppo.critic.net(
-                    np.expand_dims(current_state, axis=0))
+
+                # Obtain needed values
+                value = self.ppo.critic.net(state)
                 log_policy = tf.math.log(action_prob[:, action])
 
+                # Save to buffer
                 sample = {
                     "state": current_state,
                     "reward": reward,
@@ -52,6 +57,7 @@ class PPOAgent():
                 if render:
                     self.env.render()
 
+                # Prepare for next time step
                 current_state = next_state
                 cummulative_reward += reward
                 step_num += 1
@@ -64,6 +70,7 @@ class PPOAgent():
             print("Iteration: {}, Reward: {}".format(
                 episode, cummulative_reward))
 
+            # Log to TensorBoard
             with train_summary_writer.as_default():
                 tf.summary.scalar('actor_loss_value',
                                   actor_loss_value, step=episode)
@@ -71,6 +78,7 @@ class PPOAgent():
                                   critic_loss_value, step=episode)
                 tf.summary.scalar('reward', cummulative_reward, step=episode)
 
+            # Save model
             if (episode + 1) % self.log_freq == 0:
                 filename_actor = 'models/{}/actor_{}'.format(
                     self.stamp, episode + 1)
@@ -131,7 +139,7 @@ class PPOAgent():
             critic_loss_value += critic_loss_value_tmp/self.config.critic_update_per_iter
         return actor_loss_value, critic_loss_value
 
-    @tf.function
+    # @tf.function
     def optimize_actor_step(self, episode_state, episode_action,
                             normalized_episode_advantage, episode_log_policy, one_hot_actions):
         with tf.GradientTape() as tape:
@@ -152,7 +160,7 @@ class PPOAgent():
             zip(grads, self.ppo.actor.net.trainable_weights))
         return loss_value
 
-    @tf.function
+    # @tf.function
     def optimize_critic_step(self, episode_state, episode_reward_to_go):
         with tf.GradientTape() as tape:
             value_estimate = self.ppo.critic.net(episode_state)
