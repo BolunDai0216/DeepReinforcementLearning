@@ -71,29 +71,38 @@ class PPOAgent:
             actor_loss_value, critic_loss_value = self.train_step()
             self.ppo.buffer = []
 
-            print("Iteration: {}, Reward: {}".format(episode, cummulative_reward))
+            print("Iteration: {}, Reward: {}".format(
+                episode, cummulative_reward))
 
             # Log to TensorBoard
             with train_summary_writer.as_default():
-                tf.summary.scalar("actor_loss_value", actor_loss_value, step=episode)
-                tf.summary.scalar("critic_loss_value", critic_loss_value, step=episode)
+                tf.summary.scalar("actor_loss_value",
+                                  actor_loss_value, step=episode)
+                tf.summary.scalar("critic_loss_value",
+                                  critic_loss_value, step=episode)
                 tf.summary.scalar("reward", cummulative_reward, step=episode)
 
             # Save model
             if (episode + 1) % self.log_freq == 0:
-                filename_actor = "models/{}/actor_{}".format(self.stamp, episode + 1)
-                filename_critic = "models/{}/critic_{}".format(self.stamp, episode + 1)
+                filename_actor = "models/{}/actor_{}".format(
+                    self.stamp, episode + 1)
+                filename_critic = "models/{}/critic_{}".format(
+                    self.stamp, episode + 1)
                 self.ppo.actor.net.save(filename_actor)
                 self.ppo.critic.net.save(filename_critic)
                 print(
-                    "Model saved at {} and {}".format(filename_actor, filename_critic)
+                    "Model saved at {} and {}".format(
+                        filename_actor, filename_critic)
                 )
 
     def train_step(self):
         # Load episode data
-        episode_state = np.array([sample["state"] for sample in self.ppo.buffer])
-        episode_reward = np.array([sample["reward"] for sample in self.ppo.buffer])
-        episode_action = np.array([sample["action"] for sample in self.ppo.buffer])
+        episode_state = np.array([sample["state"]
+                                  for sample in self.ppo.buffer])
+        episode_reward = np.array([sample["reward"]
+                                   for sample in self.ppo.buffer])
+        episode_action = np.array([sample["action"]
+                                   for sample in self.ppo.buffer])
         episode_is_terminal = np.array(
             [sample["is_terminal"] for sample in self.ppo.buffer]
         )
@@ -118,7 +127,8 @@ class PPOAgent:
         episode_advantage = discount_cumsum(
             episode_delta, self.ppo.gamma * self.ppo.lam
         )
-        episode_reward_to_go = discount_cumsum(episode_reward, self.ppo.gamma)[:-1]
+        episode_reward_to_go = discount_cumsum(
+            episode_reward, self.ppo.gamma)[:-1]
         # Make sure the data type aligns
         episode_reward_to_go = tf.cast(episode_reward_to_go, tf.float32)
 
@@ -130,7 +140,8 @@ class PPOAgent:
             episode_advantage - advantage_mean
         ) / advantage_std
         # Make sure the data type aligns
-        normalized_episode_advantage = tf.cast(normalized_episode_advantage, tf.float32)
+        normalized_episode_advantage = tf.cast(
+            normalized_episode_advantage, tf.float32)
 
         one_hot_actions = tf.keras.utils.to_categorical(
             episode_action, self.config.actor_output_size, dtype="float32"
@@ -180,7 +191,8 @@ class PPOAgent:
             clip_ratio = tf.cast(self.config.clip_ratio, tf.float32)
             tf_one = tf.constant(1.0, dtype=tf.float32)
             clipped_advantage = (
-                tf.clip_by_value(ratio, tf_one - clip_ratio, tf_one + clip_ratio)
+                tf.clip_by_value(ratio, tf_one - clip_ratio,
+                                 tf_one + clip_ratio)
                 * normalized_episode_advantage
             )
             loss_value = -tf.minimum(
@@ -203,7 +215,8 @@ class PPOAgent:
             loss_value = tf.reduce_mean(
                 tf.square(value_estimate[:, 0] - episode_reward_to_go)
             )
-        grads = tape.gradient(loss_value, self.ppo.critic.net.trainable_weights)
+        grads = tape.gradient(
+            loss_value, self.ppo.critic.net.trainable_weights)
         self.ppo.critic.optimizer.apply_gradients(
             zip(grads, self.ppo.critic.net.trainable_weights)
         )
@@ -245,14 +258,14 @@ class PPOAgent:
 
 def main():
     env = gym.make("CartPole-v1").unwrapped
-    # env = gym.wrappers.Monitor(env, "reinforce_recording", force=True)
+    env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
     config_path = "ppo_config.json"
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
     ppo_agent = PPOAgent(config, env)
     # ppo_agent.train()
-    ppo_agent.test("models/20201021-163523/actor_200/variables/variables")
+    ppo_agent.test("models/actor_200/variables/variables")
 
 
 if __name__ == "__main__":
