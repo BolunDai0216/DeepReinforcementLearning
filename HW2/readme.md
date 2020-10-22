@@ -19,7 +19,7 @@ A REINFORCE model is used to solve OpenAI Gym's `CartPole-v1` environment. Durin
 It can be seen that during testing the cartpole is able to balance at the top for all of the 1000 time steps, which lets it earn the maximum reward of 1000. A video recording one of the test runs can be found [here](https://www.youtube.com/watch?v=zldhflojbXc).
 
 ## PPO
-In this section a PPO model is used to solve the OpenAI Gym `CartPole-v1` environment. 
+In this section a PPO model is used to solve the OpenAI Gym `CartPole-v1` environment. This implementation is inspired by [OpenAI SpinningUp](https://spinningup.openai.com/en/latest/algorithms/ppo.html).
 
 ### PPO performance
 ![PPO Performance](https://github.com/BolunDai0216/DeepReinforcementLearning/blob/main/HW2/img/cartpole_ppo.png)
