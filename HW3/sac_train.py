@@ -143,10 +143,27 @@ class SACAgent:
 
     # @tf.function
     def opt_critic(self, batch_state, batch_next_state, batch_reward, batch_action, batch_terminal):
-        with tf.GradientTape() as tape:
+        action, log_prob = self.sac.actor.get_action(batch_next_state)
+        q1_target = self.sac.critic1_target.net([batch_next_state, action])
+        q2_target = self.sac.critic2_target.net([batch_next_state, action])
+        q_target = tf.math.minimum(q1_target, q2_target)
+        y = batch_reward + self.config.gamma*(1-batch_terminal)*(q_target-self.config.alpha*log_prob)
+
+        with tf.GradientTape(persistent=True) as tape:
             q1 = self.sac.critic1_eval.net([batch_state, batch_action])
             q2 = self.sac.critic2_eval.net([batch_state, batch_action])
-            loss_value = 0
+            loss_q1 = tf.reduce_mean((q1 - y)**2)
+            loss_q2 = tf.reduce_mean((q2 - y)**2)
+            loss_value = loss_q1 + loss_q2
+        
+        grads1 = tape.gradient(loss_value, self.sac.critic1_eval.net.trainable_weights)
+        grads2 = tape.gradient(loss_value, self.sac.critic2_eval.net.trainable_weights)
+        self.sac.critic1_eval.optimizer.apply_gradients(
+            zip(grads1, self.sac.critic1_eval.net.trainable_weights)
+        )
+        self.sac.critic2_eval.optimizer.apply_gradients(
+            zip(grads2, self.sac.critic2_eval.net.trainable_weights)
+        )
         return loss_value
 
     def test(self):
