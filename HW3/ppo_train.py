@@ -36,9 +36,7 @@ class PPOAgent:
                 # Get action
                 state = np.expand_dims(current_state, axis=0)
                 action_prob = self.ppo.actor.net(state)
-                action = np.random.choice(
-                    self.env.action_space.n, 1, p=action_prob[0].numpy()
-                )[0]
+                action = action_prob[0].numpy()
 
                 # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
@@ -46,6 +44,7 @@ class PPOAgent:
                 # Obtain needed values
                 value = self.ppo.critic.net(state)
                 log_policy = tf.math.log(action_prob[:, action])
+                set_trace()
 
                 # Save to buffer
                 sample = {
@@ -257,15 +256,15 @@ class PPOAgent:
 
 
 def main():
-    env = gym.make("CartPole-v1").unwrapped
-    env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
+    env = gym.make("BipedalWalkerHardcore-v3").unwrapped
+    # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
     config_path = "ppo_config.json"
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
     ppo_agent = PPOAgent(config, env)
-    # ppo_agent.train()
-    ppo_agent.test("models/actor_200/variables/variables")
+    ppo_agent.train()
+    # ppo_agent.test("models/actor_200/variables/variables")
 
 
 if __name__ == "__main__":

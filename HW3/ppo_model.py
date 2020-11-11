@@ -48,7 +48,7 @@ class PPO:
         self.actor = Model(
             config.actor_input_size,
             config.actor_output_size,
-            "softmax",
+            "tanh",
             lr=config.actor_lr,
         )
         self.critic = Model(
