@@ -12,6 +12,7 @@ from scipy import stats
 
 # Implemented some tricks in https://mp.weixin.qq.com/s/8vgLGcpsWkF89ma7T2twRA
 
+
 class SACAgent:
     def __init__(self, config, env):
         self.env = env
@@ -32,12 +33,14 @@ class SACAgent:
         update_counter = 0
 
         # Assign eval_net weights to target_net
-        self.sac.critic1_target.net.set_weights(self.sac.critic1_eval.net.get_weights())
-        self.sac.critic2_target.net.set_weights(self.sac.critic2_eval.net.get_weights())
+        self.sac.critic1_target.net.set_weights(
+            self.sac.critic1_eval.net.get_weights())
+        self.sac.critic2_target.net.set_weights(
+            self.sac.critic2_eval.net.get_weights())
 
         # Placeholder of loss
         actor_loss = None
-        critic_loss = None  
+        critic_loss = None
 
         for episode in range(self.iter_num):
             cummulative_reward = 0
@@ -81,7 +84,7 @@ class SACAgent:
                 step_num += 1
                 if step_num >= self.max_iter:
                     break
-                
+
                 # Update model weights
                 if update_counter >= self.config.update_threshold:
                     if update_counter % self.config.update_freq == 0:
@@ -89,21 +92,24 @@ class SACAgent:
                 update_counter += 1
 
             print("Iteration: {}, Reward: {}".format(
-            episode, cummulative_reward))
+                episode, cummulative_reward))
 
             # Log to TensorBoard
             if actor_loss is not None:
                 with train_summary_writer.as_default():
                     tf.summary.scalar("actor_loss_value",
-                                    actor_loss, step=episode)
+                                      actor_loss, step=episode)
                     tf.summary.scalar("critic_loss_value",
-                                    critic_loss, step=episode)
-                    tf.summary.scalar("reward", cummulative_reward, step=episode)
+                                      critic_loss, step=episode)
+                    tf.summary.scalar(
+                        "reward", cummulative_reward, step=episode)
 
             # Save model
             if (episode + 1) % self.log_freq == 0:
-                names = ["actor", "critic1_eval", "critic1_target", "critic2_eval", "critic2_target"]
-                nets = [self.sac.actor, self.sac.critic1_eval, self.sac.critic1_target, self.sac.critic2_eval, self.sac.critic2_target]
+                names = ["actor", "critic1_eval", "critic1_target",
+                         "critic2_eval", "critic2_target"]
+                nets = [self.sac.actor, self.sac.critic1_eval, self.sac.critic1_target,
+                        self.sac.critic2_eval, self.sac.critic2_target]
                 for name, net in zip(names, nets):
                     filename = "models/{}/{}_{}".format(
                         name, self.stamp, episode + 1)
@@ -128,9 +134,10 @@ class SACAgent:
         batch_terminal = tf.cast(batch_terminal, tf.float32)
 
         actor_loss = self.opt_actor(batch_state)
-        critic_loss = self.opt_critic(batch_state, batch_next_state, batch_reward, batch_action, batch_terminal)
+        critic_loss = self.opt_critic(
+            batch_state, batch_next_state, batch_reward, batch_action, batch_terminal)
 
-        critics = [[self.sac.critic1_eval, self.sac.critic1_target], 
+        critics = [[self.sac.critic1_eval, self.sac.critic1_target],
                    [self.sac.critic2_eval, self.sac.critic2_target]]
 
         # Polyak Averaging
@@ -167,7 +174,8 @@ class SACAgent:
         q1_target = self.sac.critic1_target.net([batch_next_state, action])
         q2_target = self.sac.critic2_target.net([batch_next_state, action])
         q_target = tf.math.minimum(q1_target, q2_target)
-        y = batch_reward + self.config.gamma*(1-batch_terminal)*(q_target-self.config.alpha*log_prob)
+        y = batch_reward + self.config.gamma * \
+            (1-batch_terminal)*(q_target-self.config.alpha*log_prob)
 
         with tf.GradientTape(persistent=True) as tape:
             q1 = self.sac.critic1_eval.net([batch_state, batch_action])
@@ -175,9 +183,11 @@ class SACAgent:
             loss_q1 = tf.reduce_mean((q1 - y)**2)
             loss_q2 = tf.reduce_mean((q2 - y)**2)
             loss_value = loss_q1 + loss_q2
-        
-        grads1 = tape.gradient(loss_value, self.sac.critic1_eval.net.trainable_weights)
-        grads2 = tape.gradient(loss_value, self.sac.critic2_eval.net.trainable_weights)
+
+        grads1 = tape.gradient(
+            loss_value, self.sac.critic1_eval.net.trainable_weights)
+        grads2 = tape.gradient(
+            loss_value, self.sac.critic2_eval.net.trainable_weights)
         self.sac.critic1_eval.optimizer.apply_gradients(
             zip(grads1, self.sac.critic1_eval.net.trainable_weights)
         )
@@ -210,26 +220,27 @@ class SACAgent:
 
                 if render:
                     self.env.render()
-                
+
                 # Prepare for next time step
                 state = next_state
                 cummulative_reward += reward
                 step_num += 1
                 if step_num >= self.max_iter:
                     break
-            
+
             self.test_run += 1
             # Log to TensorBoard
             with train_summary_writer.as_default():
-                tf.summary.scalar("reward", cummulative_reward, step=self.test_run)
-                
+                tf.summary.scalar(
+                    "reward", cummulative_reward, step=self.test_run)
+
 
 def main():
     tf.debugging.set_log_device_placement(True)
     gpus = tf.config.experimental.list_physical_devices("GPU")
     tf.config.experimental.set_visible_devices(gpus[2], "GPU")
     tf.config.experimental.set_memory_growth(gpus[2], True)
-    
+
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
         env = BipedalWalkerHardcoreWrapper(env)
