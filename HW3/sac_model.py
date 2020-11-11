@@ -90,33 +90,26 @@ class SAC:
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-<<<<<<< HEAD
         )
-        self.critic2 = CriticModel(
-=======
-        ) 
         self.critic1_target = CriticModel(
->>>>>>> f98ba8dc99c8cb06ed372e8b519543542e8c537a
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-<<<<<<< HEAD
         )
-=======
-        ) 
         self.critic2_eval = CriticModel(
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-        ) 
+        )
         self.critic2_target = CriticModel(
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-        ) 
+        )
+
 
 class ReplayBuffer:
     def __init__(self, config):
@@ -135,7 +128,6 @@ class ReplayBuffer:
         idx = np.random.choice(sample_array, batch_size, replace=False)
         samples = [self.buffer[i] for i in idx.tolist()]
         return samples
->>>>>>> f98ba8dc99c8cb06ed372e8b519543542e8c537a
 
 
 def main():

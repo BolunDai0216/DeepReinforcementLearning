@@ -10,6 +10,7 @@ import tensorflow as tf
 from sac_model import SAC, ReplayBuffer
 from scipy import stats
 
+
 class SACAgent:
     def __init__(self, config, env):
         self.env = env
@@ -20,7 +21,7 @@ class SACAgent:
         self.max_iter = config.max_iter
         self.log_freq = config.log_freq
         self.buffer = ReplayBuffer(self.config)
-    
+
     def train(self, render=False):
         train_log_dir = "logs/sac/" + self.stamp + "/train"
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
@@ -58,35 +59,33 @@ class SACAgent:
                 step_num += 1
                 if step_num >= self.max_iter:
                     break
-            
+
             set_trace()
-    
+
     def train_step(self):
         pass
-    
+
     @tf.function
     def opt_actor(self):
         pass
-    
+
     @tf.function
     def opt_critic(self):
         pass
-    
+
     def test(self):
         pass
 
 
-
 def main():
-    env = gym.make("BipedalWalkerHardcore-v3").unwrapped
+    env = gym.make("BipedalWalkerHardcore-v2").unwrapped
     # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
     config_path = "sac_config.json"
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
     sac_agent = SACAgent(config, env)
-    sac_agent.train(render=False)
-    # ppo_agent.test("models/actor_200/variables/variables")
+    sac_agent.train(render=True)
 
 
 if __name__ == "__main__":
