@@ -1,18 +1,19 @@
 import json
+from pdb import set_trace
 
+import gym
 import munch
+import numpy as np
 import scipy.signal
 import tensorflow as tf
 import tensorflow_probability as tfp
-from tensorflow.keras.layers import Dense, Concatenate
+from tensorflow.keras.layers import Concatenate, Dense
 from tensorflow.keras.models import Sequential
-from pdb import set_trace
-import gym
-import numpy as np
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
 tfd = tfp.distributions
+
 
 class CriticModel:
     def __init__(self, obs_size, act_size, output_size, activation_func="relu", lr=1e-4):
@@ -50,7 +51,7 @@ class ActorModel:
 
         # Action limit
         self.action_lim = action_lim
-    
+
     def get_action(self, obs):
         mu, log_std = self.net(obs)
         log_std = tf.clip_by_value(log_std, LOG_STD_MIN, LOG_STD_MAX)
@@ -60,7 +61,8 @@ class ActorModel:
 
         # get log prob of sampled action
         log_prob = tf.reduce_sum(dist.log_prob(action))
-        log_prob -= tf.reduce_sum(2*(np.log(2) - action - tf.math.softplus(-2*action)))
+        log_prob -= tf.reduce_sum(2*(np.log(2) -
+                                     action - tf.math.softplus(-2*action)))
 
         # get action
         action = tf.math.tanh(action)*self.action_lim
@@ -78,9 +80,9 @@ class SACModel:
     def __init__(self, config):
         self.config = config
         self.actor = ActorModel(
-            config.actor_input_size, 
-            config.actor_output_size, 
-            config.action_lim, 
+            config.actor_input_size,
+            config.actor_output_size,
+            config.action_lim,
             lr=config.actor_lr
         )
         self.critic1 = CriticModel(
@@ -88,13 +90,13 @@ class SACModel:
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-        ) 
+        )
         self.critic2 = CriticModel(
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
-        ) 
+        )
 
 
 def main():
