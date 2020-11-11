@@ -76,7 +76,7 @@ class ActorModel:
         self.net.save_weights(file_name)
 
 
-class SACModel:
+class SAC:
     def __init__(self, config):
         self.config = config
         self.actor = ActorModel(
@@ -85,18 +85,57 @@ class SACModel:
             config.action_lim,
             lr=config.actor_lr
         )
-        self.critic1 = CriticModel(
+        self.critic1_eval = CriticModel(
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
+<<<<<<< HEAD
         )
         self.critic2 = CriticModel(
+=======
+        ) 
+        self.critic1_target = CriticModel(
+>>>>>>> f98ba8dc99c8cb06ed372e8b519543542e8c537a
             config.critic_obs_input_size,
             config.critic_act_input_size,
             config.critic_output_size,
             lr=config.critic_lr,
+<<<<<<< HEAD
         )
+=======
+        ) 
+        self.critic2_eval = CriticModel(
+            config.critic_obs_input_size,
+            config.critic_act_input_size,
+            config.critic_output_size,
+            lr=config.critic_lr,
+        ) 
+        self.critic2_target = CriticModel(
+            config.critic_obs_input_size,
+            config.critic_act_input_size,
+            config.critic_output_size,
+            lr=config.critic_lr,
+        ) 
+
+class ReplayBuffer:
+    def __init__(self, config):
+        self.max_size = config.max_buffer_size
+        self.burn_in_size = config.burn_in_size
+        self.buffer = []
+        self.is_burn_in = False
+
+    def add_sample(self, sample):
+        self.buffer.append(sample)
+        if len(self.buffer) > self.max_size:
+            self.buffer.pop(0)
+
+    def get_samples(self, batch_size):
+        sample_array = np.arange(len(self.buffer))
+        idx = np.random.choice(sample_array, batch_size, replace=False)
+        samples = [self.buffer[i] for i in idx.tolist()]
+        return samples
+>>>>>>> f98ba8dc99c8cb06ed372e8b519543542e8c537a
 
 
 def main():
@@ -104,12 +143,13 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
-    actor = ActorModel(config.actor_input_size, config.actor_output_size, 1)
+    sac = SAC(config)
+    # actor = ActorModel(config.actor_input_size, config.actor_output_size, 1)
 
-    env = gym.make("BipedalWalkerHardcore-v3")
-    obs = env.reset()
-    obs = np.expand_dims(obs, axis=0)
-    action, log_prob = actor.get_action(obs)
+    # env = gym.make("BipedalWalkerHardcore-v3")
+    # obs = env.reset()
+    # obs = np.expand_dims(obs, axis=0)
+    # action, log_prob = actor.get_action(obs)
 
 
 if __name__ == "__main__":
