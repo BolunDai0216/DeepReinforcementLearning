@@ -55,7 +55,7 @@ class ActorModel:
         # Action limit
         self.action_lim = action_lim
 
-    def get_action(self, obs):
+    def get_action(self, obs, test=False):
         mu, log_std = self.net(obs)
         log_std = tf.clip_by_value(log_std, LOG_STD_MIN, LOG_STD_MAX)
         std = tf.math.exp(log_std)
@@ -69,6 +69,9 @@ class ActorModel:
 
         # get action
         action = tf.math.tanh(action)*self.action_lim
+
+        if test:
+            action = mu
 
         return action, log_prob
 

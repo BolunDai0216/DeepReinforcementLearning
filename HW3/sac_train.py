@@ -24,6 +24,7 @@ class SACAgent:
         self.buffer = ReplayBuffer(self.config)
         self.polyak_constant = config.polyak_constant
         self.batch_size = config.batch_size
+        self.test_run = 0
 
     def train(self, render=False):
         train_log_dir = "logs/sac/" + self.stamp + "/train"
@@ -85,7 +86,6 @@ class SACAgent:
                 if update_counter >= self.config.update_threshold:
                     if update_counter % self.config.update_freq == 0:
                         actor_loss, critic_loss = self.train_step()
-                        print("model updated ..., update_counter: {}".format(update_counter))
                 update_counter += 1
 
             print("Iteration: {}, Reward: {}".format(
@@ -186,9 +186,43 @@ class SACAgent:
         )
         return loss_value
 
-    def test(self):
-        pass
+    def test(self, filename=None, render=False):
+        # Load file
+        if filename is not None:
+            self.ppo.actor.load(filename)
+        # Setup tensorboard logdir
+        test_log_dir = "logs/sac/" + self.stamp + "/test"
+        test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
+        for i in range(self.config.test_iters):
+            cummulative_reward = 0
+            is_terminal = False
+            state = self.env.reset()
+            step_num = 0
+
+            while not is_terminal:
+                state = np.expand_dims(state, axis=0)
+                # Get action
+                action, log_pi = self.sac.actor.get_action(state, test=True)
+                action = action[0].numpy()
+                # Step
+                next_state, reward, is_terminal, _ = self.env.step(action)
+
+                if render:
+                    self.env.render()
+                
+                # Prepare for next time step
+                state = next_state
+                cummulative_reward += reward
+                step_num += 1
+                if step_num >= self.max_iter:
+                    break
+            
+            self.test_run += 1
+            # Log to TensorBoard
+            with train_summary_writer.as_default():
+                tf.summary.scalar("reward", cummulative_reward, step=self.test_run)
+                
 
 def main():
     tf.debugging.set_log_device_placement(True)
