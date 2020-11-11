@@ -155,22 +155,22 @@ class SACAgent:
             update_weights = []
             for eval_weight, target_weight in zip(eval_weights, target_weights):
                 update_weights.append(
-                    self.polyak_constant * eval_weight
-                    + (1 - self.polyak_constant) * target_weight
+                    self.polyak_constant * target_weight
+                    + (1 - self.polyak_constant) * eval_weight
                 )
             nets[1].net.set_weights(update_weights)
         return actor_loss, critic_loss
 
     @tf.function
     def opt_actor(self, batch_state):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape() as tape_a:
             action, log_prob = self.sac.actor.get_action(batch_state)
             q1_eval = self.sac.critic1_eval.net([batch_state, action])
             q2_eval = self.sac.critic2_eval.net([batch_state, action])
             q_eval = tf.math.minimum(q1_eval, q2_eval)
             loss_value = tf.reduce_mean(self.config.alpha*log_prob - q_eval)
 
-        grads = tape.gradient(loss_value, self.sac.actor.net.trainable_weights)
+        grads = tape_a.gradient(loss_value, self.sac.actor.net.trainable_weights)
         self.sac.actor.optimizer.apply_gradients(
             zip(grads, self.sac.actor.net.trainable_weights)
         )
@@ -193,9 +193,9 @@ class SACAgent:
             loss_value = loss_q1 + loss_q2
 
         grads1 = tape.gradient(
-            loss_value, self.sac.critic1_eval.net.trainable_weights)
+            loss_q1, self.sac.critic1_eval.net.trainable_weights)
         grads2 = tape.gradient(
-            loss_value, self.sac.critic2_eval.net.trainable_weights)
+            loss_q2, self.sac.critic2_eval.net.trainable_weights)
         self.sac.critic1_eval.optimizer.apply_gradients(
             zip(grads1, self.sac.critic1_eval.net.trainable_weights)
         )
@@ -234,13 +234,8 @@ class SACAgent:
                     break
 
             self.test_run += 1
-<<<<<<< HEAD
-            print("test run {}, reward: {}".format(
-                self.test_run, cummulative_reward))
-=======
             print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
 
->>>>>>> bb89d01f45924bc13dcdcd2bc6663c0cb98f0bc3
             # Log to TensorBoard
             with self.test_summary_writer.as_default():
                 tf.summary.scalar(
@@ -262,14 +257,8 @@ def main():
             config = json.load(json_file)
         config = munch.munchify(config)
         sac_agent = SACAgent(config, env)
-<<<<<<< HEAD
-        # sac_agent.train(render=False)
-        sac_agent.test(
-            filename="models/actor/20201111-161316_9100/variables/variables")
-=======
         sac_agent.train(render=False)
         # sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
->>>>>>> bb89d01f45924bc13dcdcd2bc6663c0cb98f0bc3
 
 
 if __name__ == "__main__":
