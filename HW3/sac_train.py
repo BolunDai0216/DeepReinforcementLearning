@@ -11,6 +11,7 @@ from sac_model import SAC, ReplayBuffer, BipedalWalkerHardcoreWrapper
 from scipy import stats
 
 # Implemented some tricks in https://mp.weixin.qq.com/s/8vgLGcpsWkF89ma7T2twRA
+# run using: xvfb-run python3 sac_train.py
 
 
 class SACAgent:
@@ -199,7 +200,7 @@ class SACAgent:
     def test(self, filename=None, render=False):
         # Load file
         if filename is not None:
-            self.ppo.actor.load(filename)
+            self.sac.actor.load(filename)
         # Setup tensorboard logdir
         test_log_dir = "logs/sac/" + self.stamp + "/test"
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
@@ -229,8 +230,9 @@ class SACAgent:
                     break
 
             self.test_run += 1
+            print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
             # Log to TensorBoard
-            with train_summary_writer.as_default():
+            with test_summary_writer.as_default():
                 tf.summary.scalar(
                     "reward", cummulative_reward, step=self.test_run)
 
@@ -243,14 +245,15 @@ def main():
 
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
-        env = BipedalWalkerHardcoreWrapper(env)
+        # env = BipedalWalkerHardcoreWrapper(env)
         # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
         sac_agent = SACAgent(config, env)
-        sac_agent.train(render=False)
+        # sac_agent.train(render=False)
+        sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
 
 
 if __name__ == "__main__":
