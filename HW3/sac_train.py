@@ -112,7 +112,7 @@ class SACAgent:
         # Shape [batch_size, ]
         batch_terminal = np.array([sample["terminal"] for sample in batch])
 
-        # actor_loss = self.opt_actor(batch_state)
+        actor_loss = self.opt_actor(batch_state)
         critic_loss = self.opt_critic(batch_state, batch_next_state, batch_reward, batch_action, batch_terminal)
 
         critics = [[self.sac.critic1_eval, self.sac.critic1_target], 
@@ -134,7 +134,12 @@ class SACAgent:
     @tf.function
     def opt_actor(self, batch_state):
         with tf.GradientTape() as tape:
-            loss_value = 0
+            action, log_prob = self.sac.actor.get_action(batch_state)
+            q1_eval = self.sac.critic1_eval.net([batch_state, action])
+            q2_eval = self.sac.critic2_eval.net([batch_state, action])
+            q_eval = tf.math.minimum(q1_eval, q2_eval)
+            loss_value = tf.reduce_mean(self.config.alpha*log_prob - q_eval)
+
         grads = tape.gradient(loss_value, self.sac.actor.net.trainable_weights)
         self.sac.actor.optimizer.apply_gradients(
             zip(grads, self.sac.actor.net.trainable_weights)
