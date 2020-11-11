@@ -7,7 +7,7 @@ import gym
 import munch
 import numpy as np
 import tensorflow as tf
-from sac_model import SAC, ReplayBuffer
+from sac_model import SAC, ReplayBuffer, BipedalWalkerHardcoreWrapper
 from scipy import stats
 
 # Implemented some tricks in https://mp.weixin.qq.com/s/8vgLGcpsWkF89ma7T2twRA
@@ -45,15 +45,19 @@ class SACAgent:
             step_num = 0
 
             while not is_terminal:
-                # Get action
                 state = np.expand_dims(state, axis=0)
-                action, log_pi = self.sac.actor.get_action(state)
-                action = action[0].numpy()
+
+                # Get action
+                if update_counter <= self.config.start_steps:
+                    action = self.env.action_space.sample()
+                else:
+                    action, log_pi = self.sac.actor.get_action(state)
+                    action = action[0].numpy()
                 # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
 
                 # Clip falling reward
-                if reward == -100:
+                if is_terminal and reward == -100:
                     reward = 0
 
                 # Save sample to replay buffer
@@ -79,8 +83,9 @@ class SACAgent:
                 
                 # Update model weights
                 if update_counter >= self.config.update_threshold:
-                    if update_counter % self.config.update_freq:
+                    if update_counter % self.config.update_freq == 0:
                         actor_loss, critic_loss = self.train_step()
+                        print("model updated ..., update_counter: {}".format(update_counter))
                 update_counter += 1
 
             print("Iteration: {}, Reward: {}".format(
@@ -192,7 +197,8 @@ def main():
     tf.config.experimental.set_memory_growth(gpus[2], True)
     
     with tf.device("/device:GPU:2"):
-        env = gym.make("BipedalWalkerHardcore-v3").unwrapped
+        env = gym.make("BipedalWalkerHardcore-v3")
+        env = BipedalWalkerHardcoreWrapper(env)
         # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:

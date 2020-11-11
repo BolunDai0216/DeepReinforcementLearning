@@ -114,6 +114,33 @@ class SAC:
         )
 
 
+class BipedalWalkerHardcoreWrapper(object):
+    def __init__(self, env, action_repeat=3):
+        self._env = env
+        self.action_repeat = action_repeat
+        self.act_noise = 0.3
+        self.reward_scale = 5.0
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    def reset(self):
+        obs = self._env.reset()
+        return obs
+
+    def step(self, action):
+        action += self.act_noise * (-2 * np.random.random(4) + 1)
+        r = 0.0
+        for _ in range(self.action_repeat):
+            obs_, reward_, done_, info_ = self._env.step(action)
+            r = r + reward_
+            if done_ and self.action_repeat != 1:
+                return obs_, 0.0, done_, info_
+            if self.action_repeat == 1:
+                return obs_, r, done_, info_
+        return obs_, self.reward_scale * r, done_, info_
+
+
 class ReplayBuffer:
     def __init__(self, config):
         self.max_size = int(config.max_buffer_size)
