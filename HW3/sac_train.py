@@ -11,7 +11,7 @@ from sac_model import SAC, ReplayBuffer, BipedalWalkerHardcoreWrapper
 from scipy import stats
 
 # Implemented some tricks in https://mp.weixin.qq.com/s/8vgLGcpsWkF89ma7T2twRA
-# run using: xvfb-run python3 sac_train.py
+# run using: xvfb-run -a python3 sac_train.py
 
 
 class SACAgent:
@@ -230,7 +230,8 @@ class SACAgent:
                     break
 
             self.test_run += 1
-            print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
+            print("test run {}, reward: {}".format(
+                self.test_run, cummulative_reward))
             # Log to TensorBoard
             with test_summary_writer.as_default():
                 tf.summary.scalar(
@@ -253,7 +254,8 @@ def main():
         config = munch.munchify(config)
         sac_agent = SACAgent(config, env)
         # sac_agent.train(render=False)
-        sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
+        sac_agent.test(
+            filename="models/actor/20201111-161316_9100/variables/variables")
 
 
 if __name__ == "__main__":
