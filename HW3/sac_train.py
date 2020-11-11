@@ -10,6 +10,7 @@ import tensorflow as tf
 from sac_model import SAC, ReplayBuffer
 from scipy import stats
 
+# Implemented some tricks in https://mp.weixin.qq.com/s/8vgLGcpsWkF89ma7T2twRA
 
 class SACAgent:
     def __init__(self, config, env):
@@ -50,6 +51,11 @@ class SACAgent:
                 action = action[0].numpy()
                 # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
+
+                # Clip falling reward
+                if reward == -100:
+                    reward = 0
+
                 # Save sample to replay buffer
                 sample = {
                     "state": state,
@@ -103,14 +109,18 @@ class SACAgent:
         batch = self.buffer.get_samples(self.batch_size)
         # Shape [batch_size, observation_size]
         batch_state = np.array([sample["state"] for sample in batch])[:, 0, :]
+        batch_state = tf.cast(batch_state, tf.float32)
         # Shape [batch_size, observation_size]
         batch_next_state = np.array([sample["next_state"] for sample in batch])
+        batch_next_state = tf.cast(batch_next_state, tf.float32)
         # Shape [batch_size, ]
         batch_reward = np.array([sample["reward"] for sample in batch])
+        batch_reward = tf.cast(batch_reward, tf.float32)
         # Shape [batch_size, action_size]
         batch_action = np.array([sample["action"] for sample in batch])
         # Shape [batch_size, ]
         batch_terminal = np.array([sample["terminal"] for sample in batch])
+        batch_terminal = tf.cast(batch_terminal, tf.float32)
 
         actor_loss = self.opt_actor(batch_state)
         critic_loss = self.opt_critic(batch_state, batch_next_state, batch_reward, batch_action, batch_terminal)
@@ -146,7 +156,7 @@ class SACAgent:
         )
         return loss_value
 
-    # @tf.function
+    @tf.function
     def opt_critic(self, batch_state, batch_next_state, batch_reward, batch_action, batch_terminal):
         action, log_prob = self.sac.actor.get_action(batch_next_state)
         q1_target = self.sac.critic1_target.net([batch_next_state, action])
@@ -176,14 +186,20 @@ class SACAgent:
 
 
 def main():
-    env = gym.make("BipedalWalkerHardcore-v3").unwrapped
-    # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
-    config_path = "sac_config.json"
-    with open(config_path) as json_file:
-        config = json.load(json_file)
-    config = munch.munchify(config)
-    sac_agent = SACAgent(config, env)
-    sac_agent.train(render=True)
+    tf.debugging.set_log_device_placement(True)
+    gpus = tf.config.experimental.list_physical_devices("GPU")
+    tf.config.experimental.set_visible_devices(gpus[2], "GPU")
+    tf.config.experimental.set_memory_growth(gpus[2], True)
+    
+    with tf.device("/device:GPU:2"):
+        env = gym.make("BipedalWalkerHardcore-v3").unwrapped
+        # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
+        config_path = "sac_config.json"
+        with open(config_path) as json_file:
+            config = json.load(json_file)
+        config = munch.munchify(config)
+        sac_agent = SACAgent(config, env)
+        sac_agent.train(render=False)
 
 
 if __name__ == "__main__":

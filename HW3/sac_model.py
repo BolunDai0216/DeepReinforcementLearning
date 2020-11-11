@@ -116,7 +116,7 @@ class SAC:
 
 class ReplayBuffer:
     def __init__(self, config):
-        self.max_size = config.max_buffer_size
+        self.max_size = int(config.max_buffer_size)
         self.burn_in_size = config.burn_in_size
         self.buffer = []
         self.is_burn_in = False
