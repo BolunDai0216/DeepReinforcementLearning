@@ -22,6 +22,7 @@ class SACAgent:
         self.log_freq = config.log_freq
         self.buffer = ReplayBuffer(self.config)
         self.polyak_constant = config.polyak_constant
+        self.batch_size = config.batch_size
 
     def train(self, render=False):
         train_log_dir = "logs/sac/" + self.stamp + "/train"
@@ -99,8 +100,20 @@ class SACAgent:
                     print("Model of {} saved at {}".format(name, filename))
 
     def train_step(self):
-        actor_loss = self.opt_actor()
-        critic_loss = self.opt_critic()
+        batch = self.buffer.get_samples(self.batch_size)
+        # Shape [batch_size, observation_size]
+        batch_state = np.array([sample["state"] for sample in batch])[:, 0, :]
+        # Shape [batch_size, observation_size]
+        batch_next_state = np.array([sample["next_state"] for sample in batch])
+        # Shape [batch_size, ]
+        batch_reward = np.array([sample["reward"] for sample in batch])
+        # Shape [batch_size, action_size]
+        batch_action = np.array([sample["action"] for sample in batch])
+        # Shape [batch_size, ]
+        batch_terminal = np.array([sample["terminal"] for sample in batch])
+
+        # actor_loss = self.opt_actor(batch_state)
+        critic_loss = self.opt_critic(batch_state, batch_next_state, batch_reward, batch_action, batch_terminal)
 
         critics = [[self.sac.critic1_eval, self.sac.critic1_target], 
                    [self.sac.critic2_eval, self.sac.critic2_target]]
@@ -119,13 +132,21 @@ class SACAgent:
         return actor_loss, critic_loss
 
     @tf.function
-    def opt_actor(self):
-        loss_value = 0
+    def opt_actor(self, batch_state):
+        with tf.GradientTape() as tape:
+            loss_value = 0
+        grads = tape.gradient(loss_value, self.sac.actor.net.trainable_weights)
+        self.sac.actor.optimizer.apply_gradients(
+            zip(grads, self.sac.actor.net.trainable_weights)
+        )
         return loss_value
 
-    @tf.function
-    def opt_critic(self):
-        loss_value = 0
+    # @tf.function
+    def opt_critic(self, batch_state, batch_next_state, batch_reward, batch_action, batch_terminal):
+        with tf.GradientTape() as tape:
+            q1 = self.sac.critic1_eval.net([batch_state, batch_action])
+            q2 = self.sac.critic2_eval.net([batch_state, batch_action])
+            loss_value = 0
         return loss_value
 
     def test(self):
