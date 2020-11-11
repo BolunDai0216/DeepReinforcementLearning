@@ -28,6 +28,10 @@ class SACAgent:
         self.batch_size = config.batch_size
         self.test_run = 0
 
+        # Setup tensorboard logdir
+        test_log_dir = "logs/sac/" + self.stamp + "/test"
+        self.test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
     def train(self, render=False):
         train_log_dir = "logs/sac/" + self.stamp + "/train"
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
@@ -116,6 +120,9 @@ class SACAgent:
                         name, self.stamp, episode + 1)
                     net.net.save(filename)
                     print("Model of {} saved at {}".format(name, filename))
+                
+                self.test()
+
 
     def train_step(self):
         batch = self.buffer.get_samples(self.batch_size)
@@ -201,9 +208,6 @@ class SACAgent:
         # Load file
         if filename is not None:
             self.sac.actor.load(filename)
-        # Setup tensorboard logdir
-        test_log_dir = "logs/sac/" + self.stamp + "/test"
-        test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
         for i in range(self.config.test_iters):
             cummulative_reward = 0
@@ -231,10 +235,11 @@ class SACAgent:
 
             self.test_run += 1
             print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
+
             # Log to TensorBoard
-            with test_summary_writer.as_default():
+            with self.test_summary_writer.as_default():
                 tf.summary.scalar(
-                    "reward", cummulative_reward, step=self.test_run)
+                    "test reward", cummulative_reward, step=self.test_run)
 
 
 def main():
@@ -245,15 +250,15 @@ def main():
 
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
-        # env = BipedalWalkerHardcoreWrapper(env)
+        env = BipedalWalkerHardcoreWrapper(env)
         # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
         sac_agent = SACAgent(config, env)
-        # sac_agent.train(render=False)
-        sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
+        sac_agent.train(render=False)
+        # sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
 
 
 if __name__ == "__main__":
