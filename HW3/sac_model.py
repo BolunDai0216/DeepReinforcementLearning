@@ -6,13 +6,16 @@ import munch
 import numpy as np
 import scipy.signal
 import tensorflow as tf
-import tensorflow_probability as tfp
 from tensorflow.keras.layers import Concatenate, Dense
 from tensorflow.keras.models import Sequential
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
-tfd = tfp.distributions
+EPS = 1e-8
+
+def gaussian_likelihood(x, mu, log_std):
+    pre_sum = -0.5 * (((x-mu)/(tf.math.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
+    return tf.reduce_sum(pre_sum, axis=1)
 
 
 class CriticModel:
@@ -56,11 +59,11 @@ class ActorModel:
         mu, log_std = self.net(obs)
         log_std = tf.clip_by_value(log_std, LOG_STD_MIN, LOG_STD_MAX)
         std = tf.math.exp(log_std)
-        dist = tfd.Normal(loc=mu, scale=std)
-        action = dist.sample()
+        # Reparameterization trick
+        action = mu + tf.random.normal(tf.shape(mu))*std
 
         # get log prob of sampled action
-        log_prob = tf.reduce_sum(dist.log_prob(action))
+        log_prob = gaussian_likelihood(action, mu, log_std)
         log_prob -= tf.reduce_sum(2*(np.log(2) -
                                      action - tf.math.softplus(-2*action)))
 
@@ -136,12 +139,6 @@ def main():
         config = json.load(json_file)
     config = munch.munchify(config)
     sac = SAC(config)
-    # actor = ActorModel(config.actor_input_size, config.actor_output_size, 1)
-
-    # env = gym.make("BipedalWalkerHardcore-v3")
-    # obs = env.reset()
-    # obs = np.expand_dims(obs, axis=0)
-    # action, log_prob = actor.get_action(obs)
 
 
 if __name__ == "__main__":

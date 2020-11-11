@@ -78,7 +78,7 @@ class SACAgent:
 
 
 def main():
-    env = gym.make("BipedalWalkerHardcore-v2").unwrapped
+    env = gym.make("BipedalWalkerHardcore-v3").unwrapped
     # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
     config_path = "sac_config.json"
     with open(config_path) as json_file:
