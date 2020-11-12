@@ -62,6 +62,7 @@ class SACAgent:
                 else:
                     action, log_pi = self.sac.actor.get_action(state)
                     action = action[0].numpy()
+                update_counter += 1
                 # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
 
@@ -90,11 +91,16 @@ class SACAgent:
                 if step_num >= self.max_iter:
                     break
 
-                # Update model weights
-                if update_counter >= self.config.update_threshold:
-                    if update_counter % self.config.update_freq == 0:
-                        actor_loss, critic_loss = self.train_step()
-                update_counter += 1
+            # Update model weights
+            if update_counter >= 5*self.config.batch_size:
+                for _ in range(step_num):
+                    actor_loss, critic_loss = self.train_step()
+            else:
+                print("buffer size too small: {}".format(len(self.buffer.buffer)))
+
+            # if update_counter >= self.config.update_threshold:
+            #     if update_counter % self.config.update_freq == 0:
+            #         actor_loss, critic_loss = self.train_step()
 
             print("Iteration: {}, Reward: {}".format(
                 episode, cummulative_reward))

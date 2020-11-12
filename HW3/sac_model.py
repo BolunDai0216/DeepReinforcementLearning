@@ -26,8 +26,8 @@ class CriticModel:
         obs_inputs = tf.keras.Input(shape=(obs_size,), name="obs_input")
         act_inputs = tf.keras.Input(shape=(act_size,), name="act_input")
         inputs = Concatenate()([obs_inputs, act_inputs])
-        l1 = Dense(256, activation="relu")(inputs)
-        l2 = Dense(256, activation="relu")(l1)
+        l1 = Dense(400, activation="relu")(inputs)
+        l2 = Dense(300, activation="relu")(l1)
         l3 = Dense(output_size, activation=activation_func)(l2)
         self.net = tf.keras.Model(inputs=[obs_inputs, act_inputs], outputs=l3)
 
@@ -45,8 +45,8 @@ class ActorModel:
     def __init__(self, input_size, output_size, action_lim, activation_func="linear", lr=1e-4):
         # Define network
         inputs = tf.keras.Input(shape=(input_size,), name="input")
-        l1 = Dense(256, activation="relu")(inputs)
-        l2 = Dense(256, activation="relu")(l1)
+        l1 = Dense(400, activation="relu")(inputs)
+        l2 = Dense(300, activation="relu")(l1)
         mu = Dense(output_size, activation=activation_func)(l2)
         log_std = Dense(output_size, activation=activation_func)(l2)
         self.net = tf.keras.Model(inputs=inputs, outputs=[mu, log_std])
