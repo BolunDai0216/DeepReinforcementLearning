@@ -15,8 +15,9 @@ from scipy import stats
 
 
 class SACAgent:
-    def __init__(self, config, env):
+    def __init__(self, config, env, test_env):
         self.env = env
+        self.test_env = test_env
         self.config = config
         self.iter_num = self.config.iter_num
         self.sac = SAC(self.config)
@@ -167,7 +168,7 @@ class SACAgent:
             nets[1].net.set_weights(update_weights)
         return actor_loss, critic_loss
 
-    @tf.function
+    # @tf.function
     def opt_actor(self, batch_state):
         with tf.GradientTape() as tape_a:
             action, log_prob = self.sac.actor.get_action(batch_state)
@@ -182,7 +183,7 @@ class SACAgent:
         )
         return loss_value
 
-    @tf.function
+    # @tf.function
     def opt_critic(self, batch_state, batch_next_state, batch_reward, batch_action, batch_terminal):
         action, log_prob = self.sac.actor.get_action(batch_next_state)
         q1_target = self.sac.critic1_target.net([batch_next_state, action])
@@ -227,7 +228,7 @@ class SACAgent:
                 action, log_pi = self.sac.actor.get_action(state, test=True)
                 action = action[0].numpy()
                 # Step
-                next_state, reward, is_terminal, _ = self.env.step(action)
+                next_state, reward, is_terminal, _ = self.test_env.step(action)
 
                 if render:
                     self.env.render()
@@ -256,13 +257,13 @@ def main():
 
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
-        env = BipedalWalkerHardcoreWrapper(env)
+        train_env = BipedalWalkerHardcoreWrapper(env)
         # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
-        sac_agent = SACAgent(config, env)
+        sac_agent = SACAgent(config, train_env, env)
         sac_agent.train(render=False)
         # sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
 

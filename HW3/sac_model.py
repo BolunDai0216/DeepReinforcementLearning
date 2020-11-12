@@ -19,6 +19,10 @@ def gaussian_likelihood(x, mu, log_std):
                       ** 2 + 2*log_std + np.log(2*np.pi))
     return tf.reduce_sum(pre_sum, axis=1)
 
+def clip_but_pass_gradient(x, l=-1., u=1.):
+    clip_up = tf.cast(x > u, tf.float32)
+    clip_low = tf.cast(x < l, tf.float32)
+    return x + tf.stop_gradient((u - x)*clip_up + (l - x)*clip_low)
 
 class CriticModel:
     def __init__(self, obs_size, act_size, output_size, activation_func="relu", lr=1e-4):
@@ -59,15 +63,16 @@ class ActorModel:
 
     def get_action(self, obs, test=False):
         mu, log_std = self.net(obs)
-        log_std = tf.clip_by_value(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
         std = tf.math.exp(log_std)
         # Reparameterization trick
         action = mu + tf.random.normal(tf.shape(mu))*std
 
         # get log prob of sampled action
         log_prob = gaussian_likelihood(action, mu, log_std)
-        log_prob -= tf.reduce_sum(2*(np.log(2) -
-                                     action - tf.math.softplus(-2*action)))
+        # log_prob -= tf.reduce_sum(2*(np.log(2) -
+        #                              action - tf.math.softplus(-2*action)))
+        log_prob -= tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-6), axis=1)
 
         # get action
         action = tf.math.tanh(action)*self.action_lim
