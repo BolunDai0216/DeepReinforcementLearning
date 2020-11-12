@@ -15,24 +15,31 @@ EPS = 1e-8
 
 
 def gaussian_likelihood(x, mu, log_std):
-    pre_sum = -0.5 * (((x-mu)/(tf.math.exp(log_std)+EPS))
-                      ** 2 + 2*log_std + np.log(2*np.pi))
+    pre_sum = -0.5 * (
+        ((x - mu) / (tf.math.exp(log_std) + EPS)) ** 2 + 2 * log_std + np.log(2 * np.pi)
+    )
     return tf.reduce_sum(pre_sum, axis=1)
 
-def clip_but_pass_gradient(x, l=-1., u=1.):
+
+def clip_but_pass_gradient(x, l=-1.0, u=1.0):
     clip_up = tf.cast(x > u, tf.float32)
     clip_low = tf.cast(x < l, tf.float32)
-    return x + tf.stop_gradient((u - x)*clip_up + (l - x)*clip_low)
+    return x + tf.stop_gradient((u - x) * clip_up + (l - x) * clip_low)
+
 
 class CriticModel:
-    def __init__(self, obs_size, act_size, output_size, activation_func="relu", lr=1e-4):
+    def __init__(
+        self, obs_size, act_size, output_size, activation_func="linear", lr=1e-4
+    ):
         # Define network
         obs_inputs = tf.keras.Input(shape=(obs_size,), name="obs_input")
         act_inputs = tf.keras.Input(shape=(act_size,), name="act_input")
         inputs = Concatenate()([obs_inputs, act_inputs])
-        l1 = Dense(400, activation="relu")(inputs)
-        l2 = Dense(300, activation="relu")(l1)
-        l3 = Dense(output_size, activation=activation_func)(l2)
+        l1 = Dense(256, activation="relu", bias_initializer="glorot_uniform")(inputs)
+        l2 = Dense(256, activation="relu", bias_initializer="glorot_uniform")(l1)
+        l3 = Dense(
+            output_size, activation=activation_func, bias_initializer="glorot_uniform"
+        )(l2)
         self.net = tf.keras.Model(inputs=[obs_inputs, act_inputs], outputs=l3)
 
         # Optimizer
@@ -46,13 +53,19 @@ class CriticModel:
 
 
 class ActorModel:
-    def __init__(self, input_size, output_size, action_lim, activation_func="linear", lr=1e-4):
+    def __init__(
+        self, input_size, output_size, action_lim, activation_func="linear", lr=1e-4
+    ):
         # Define network
         inputs = tf.keras.Input(shape=(input_size,), name="input")
-        l1 = Dense(400, activation="relu")(inputs)
-        l2 = Dense(300, activation="relu")(l1)
-        mu = Dense(output_size, activation=activation_func)(l2)
-        log_std = Dense(output_size, activation=activation_func)(l2)
+        l1 = Dense(256, activation="relu", bias_initializer="glorot_uniform")(inputs)
+        l2 = Dense(256, activation="relu", bias_initializer="glorot_uniform")(l1)
+        mu = Dense(
+            output_size, activation=activation_func, bias_initializer="glorot_uniform"
+        )(l2)
+        log_std = Dense(
+            output_size, activation=activation_func, bias_initializer="glorot_uniform"
+        )(l2)
         self.net = tf.keras.Model(inputs=inputs, outputs=[mu, log_std])
 
         # Optimizer
@@ -63,22 +76,29 @@ class ActorModel:
 
     def get_action(self, obs, test=False):
         mu, log_std = self.net(obs)
-        log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
+        log_std = tf.clip_by_value(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        # log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
         std = tf.math.exp(log_std)
         # Reparameterization trick
-        action = mu + tf.random.normal(tf.shape(mu))*std
+        action = mu + tf.random.normal(tf.shape(mu)) * std
 
         # get log prob of sampled action
         log_prob = gaussian_likelihood(action, mu, log_std)
-        # log_prob -= tf.reduce_sum(2*(np.log(2) -
-        #                              action - tf.math.softplus(-2*action)))
-        log_prob -= tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-6), axis=1)
+        log_prob -= tf.reduce_sum(
+            2 * (np.log(2) - action - tf.math.softplus(-2 * action)), axis=1
+        )
+        log_prob = tf.expand_dims(log_prob, axis=1)
+        # log_prob -= tf.reduce_sum(
+        #     tf.math.log(clip_but_pass_gradient(1 - action ** 2, l=0, u=1) + 1e-6),
+        #     axis=1,
+        # )
 
-        # get action
-        action = tf.math.tanh(action)*self.action_lim
-
+        # Get test action
         if test:
             action = mu
+
+        # get action
+        action = tf.math.tanh(action) * self.action_lim
 
         return action, log_prob
 
@@ -91,12 +111,11 @@ class ActorModel:
 
 class SAC:
     def __init__(self, config):
-        self.config = config
         self.actor = ActorModel(
             config.actor_input_size,
             config.actor_output_size,
             config.action_lim,
-            lr=config.actor_lr
+            lr=config.actor_lr,
         )
         self.critic1_eval = CriticModel(
             config.critic_obs_input_size,
@@ -122,6 +141,8 @@ class SAC:
             config.critic_output_size,
             lr=config.critic_lr,
         )
+
+        self.critic_opt = tf.keras.optimizers.Adam(learning_rate=config.critic_lr)
 
 
 class BipedalWalkerHardcoreWrapper(object):
@@ -175,7 +196,7 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
     config = munch.munchify(config)
-    sac = SAC(config)
+    _ = SAC(config)
 
 
 if __name__ == "__main__":
