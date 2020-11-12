@@ -120,9 +120,8 @@ class SACAgent:
                         name, self.stamp, episode + 1)
                     net.net.save(filename)
                     print("Model of {} saved at {}".format(name, filename))
-                
-                self.test()
 
+                self.test()
 
     def train_step(self):
         batch = self.buffer.get_samples(self.batch_size)
@@ -170,7 +169,8 @@ class SACAgent:
             q_eval = tf.math.minimum(q1_eval, q2_eval)
             loss_value = tf.reduce_mean(self.config.alpha*log_prob - q_eval)
 
-        grads = tape_a.gradient(loss_value, self.sac.actor.net.trainable_weights)
+        grads = tape_a.gradient(
+            loss_value, self.sac.actor.net.trainable_weights)
         self.sac.actor.optimizer.apply_gradients(
             zip(grads, self.sac.actor.net.trainable_weights)
         )
@@ -234,7 +234,8 @@ class SACAgent:
                     break
 
             self.test_run += 1
-            print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
+            print("test run {}, reward: {}".format(
+                self.test_run, cummulative_reward))
 
             # Log to TensorBoard
             with self.test_summary_writer.as_default():
