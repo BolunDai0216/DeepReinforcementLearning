@@ -88,10 +88,6 @@ class ActorModel:
             2 * (np.log(2) - action - tf.math.softplus(-2 * action)), axis=1
         )
         log_prob = tf.expand_dims(log_prob, axis=1)
-        # log_prob -= tf.reduce_sum(
-        #     tf.math.log(clip_but_pass_gradient(1 - action ** 2, l=0, u=1) + 1e-6),
-        #     axis=1,
-        # )
 
         # Get test action
         if test:
@@ -164,6 +160,8 @@ class BipedalWalkerHardcoreWrapper(object):
         r = 0.0
         for _ in range(self.action_repeat):
             obs_, reward_, done_, info_ = self._env.step(action)
+            if done_ and reward_ == -100:
+                reward_ = 0
             r = r + reward_
             if done_ and self.action_repeat != 1:
                 return obs_, 0.0, done_, info_

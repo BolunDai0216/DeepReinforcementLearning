@@ -15,12 +15,13 @@ from scipy import stats
 
 
 class SACAgent:
-    def __init__(self, config, env, test_env):
+    def __init__(self, config, env, test_env, expert_sac_file):
         self.env = env
         self.test_env = test_env
         self.config = config
         self.iter_num = self.config.iter_num
         self.sac = SAC(self.config)
+        self.expert_sac = SAC(self.config)
         self.stamp = datetime.fromtimestamp(time()).strftime("%Y%m%d-%H%M%S")
         self.max_iter = config.max_iter
         self.log_freq = config.log_freq
@@ -28,6 +29,7 @@ class SACAgent:
         self.polyak_constant = config.polyak_constant
         self.batch_size = config.batch_size
         self.test_run = 0
+        self.expert_sac_file = expert_sac_file
 
         # Setup tensorboard logdir
         test_log_dir = "logs/sac/" + self.stamp + "/test"
@@ -36,9 +38,37 @@ class SACAgent:
         train_log_dir = "logs/sac/" + self.stamp + "/train"
         self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
-    def train(self, render=False):
+    def burn_in(self, filename=None):
+        if filename is not None:
+            self.expert_sac.actor.load(filename)
 
+        state = self.env.reset()
+        for i in range(self.config.burn_in_size):
+            state = np.expand_dims(state, axis=0)
+
+            action, _ = self.expert_sac.actor.get_action(state)
+            action = action[0].numpy()
+
+            # action = self.env.action_space.sample()
+            next_state, reward, is_terminal, _ = self.env.step(action)
+            sample = {
+                "state": state,
+                "next_state": next_state,
+                "reward": reward,
+                "action": action,
+                "terminal": is_terminal,
+            }
+
+            self.buffer.add_sample(sample)
+
+            if is_terminal:
+                state = self.env.reset()
+            else:
+                state = next_state
+
+    def train(self, render=False):
         self.update_counter = 0
+        max_test_reward = -1000
 
         # Assign eval_net weights to target_net
         self.sac.critic1_target.net.set_weights(self.sac.critic1_eval.net.get_weights())
@@ -47,6 +77,8 @@ class SACAgent:
         # Placeholder of loss
         actor_loss = None
         critic_loss = None
+
+        self.burn_in(filename=self.expert_sac_file)
 
         for episode in range(self.iter_num):
             cummulative_reward = 0
@@ -58,19 +90,12 @@ class SACAgent:
             while not is_terminal:
                 state = np.expand_dims(state, axis=0)
                 # Get action
-                if self.update_counter <= self.config.start_steps:
-                    action = self.env.action_space.sample()
-                else:
-                    action, _ = self.sac.actor.get_action(state)
-                    action = action[0].numpy()
+                action, _ = self.sac.actor.get_action(state)
+                action = action[0].numpy()
                 self.update_counter += 1
 
                 # Step
                 next_state, reward, is_terminal, _ = self.env.step(action)
-
-                # Clip falling reward
-                # if is_terminal and reward == -100:
-                #     reward = -10
 
                 # Save sample to replay buffer
                 sample = {
@@ -94,16 +119,9 @@ class SACAgent:
                     break
 
             # Update model weights
-            if self.update_counter >= self.config.update_after:
-                for _ in range(step_num):
-                    actor_loss, critic_loss = self.train_step()
-                    self.polyak_averaging()
-            else:
-                print("To early: {}".format(self.update_counter))
-
-            # if update_counter >= self.config.update_threshold:
-            #     if update_counter % self.config.update_freq == 0:
-            #         actor_loss, critic_loss = self.train_step()
+            for _ in range(10000):
+                actor_loss, critic_loss = self.train_step()
+                self.polyak_averaging()
 
             print(
                 "Iteration: {}, Reward: {}, t: {}".format(
@@ -112,34 +130,38 @@ class SACAgent:
             )
 
             # Log to TensorBoard
-            if actor_loss is not None:
-                with self.train_summary_writer.as_default():
-                    tf.summary.scalar("actor_loss_value", actor_loss, step=episode)
-                    tf.summary.scalar("critic_loss_value", critic_loss, step=episode)
-                    tf.summary.scalar("reward", cummulative_reward, step=episode)
+            with self.train_summary_writer.as_default():
+                tf.summary.scalar("actor_loss_value", actor_loss, step=episode)
+                tf.summary.scalar("critic_loss_value", critic_loss, step=episode)
+                tf.summary.scalar("reward", cummulative_reward, step=episode)
 
             # Save model
             if (episode + 1) % self.log_freq == 0:
-                names = [
-                    "actor",
-                    "critic1_eval",
-                    "critic1_target",
-                    "critic2_eval",
-                    "critic2_target",
-                ]
-                nets = [
-                    self.sac.actor,
-                    self.sac.critic1_eval,
-                    self.sac.critic1_target,
-                    self.sac.critic2_eval,
-                    self.sac.critic2_target,
-                ]
-                for name, net in zip(names, nets):
-                    filename = "models/{}/{}_{}".format(name, self.stamp, episode + 1)
-                    net.net.save(filename)
-                    print("Model of {} saved at {}".format(name, filename))
+                test_reward = self.test()
 
-                self.test()
+                # If best model save it
+                if test_reward > max_test_reward:
+                    max_test_reward = test_reward
+                    names = [
+                        "actor",
+                        "critic1_eval",
+                        "critic1_target",
+                        "critic2_eval",
+                        "critic2_target",
+                    ]
+                    nets = [
+                        self.sac.actor,
+                        self.sac.critic1_eval,
+                        self.sac.critic1_target,
+                        self.sac.critic2_eval,
+                        self.sac.critic2_target,
+                    ]
+                    for name, net in zip(names, nets):
+                        filename = "models/{}/{}_{}".format(
+                            name, self.stamp, episode + 1
+                        )
+                        net.net.save(filename)
+                        print("Model of {} saved at {}".format(name, filename))
 
     def train_step(self):
         batch = self.buffer.get_samples(self.batch_size)
@@ -229,17 +251,15 @@ class SACAgent:
 
         return loss_value
 
-    def test(self, filename=None, render=False):
+    def test(self, filename=None, render=False, standalone=False):
         # Load file
         if filename is not None:
             self.sac.actor.load(filename)
 
-        # if self.epoch < 2000:
-        #     test_iter_num = 1
-        # else:
         test_iter_num = self.config.test_iters
+        test_rewards = 0
 
-        for i in range(test_iter_num):
+        for _ in range(test_iter_num):
             cummulative_reward = 0
             is_terminal = False
             state = self.env.reset()
@@ -248,7 +268,7 @@ class SACAgent:
             while not is_terminal:
                 state = np.expand_dims(state, axis=0)
                 # Get action
-                action, log_pi = self.sac.actor.get_action(state, test=True)
+                action, _ = self.sac.actor.get_action(state, test=True)
                 action = action[0].numpy()
                 # Step
                 next_state, reward, is_terminal, _ = self.test_env.step(action)
@@ -265,10 +285,15 @@ class SACAgent:
 
             self.test_run += 1
             print("test run {}, reward: {}".format(self.test_run, cummulative_reward))
+            test_rewards += cummulative_reward
 
-            # Log to TensorBoard
+        # Log to TensorBoard
+        test_rewards = test_rewards / test_iter_num
+        if not standalone:
             with self.test_summary_writer.as_default():
-                tf.summary.scalar("test reward", cummulative_reward, step=self.test_run)
+                tf.summary.scalar("test reward", test_rewards, step=self.update_counter)
+
+        return test_rewards
 
 
 def main():
@@ -279,17 +304,22 @@ def main():
 
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
-        train_env = BipedalWalkerHardcoreWrapper(env)
-        # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
+        # train_env = BipedalWalkerHardcoreWrapper(env)
+        # env = gym.wrappers.Monitor(env, "sac_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
-        sac_agent = SACAgent(config, train_env, env)
+
+        # filename = "models/actor/20201112-140453_1700/variables/variables"
+        filename = "models/actor/20201112-152302_2600/variables/variables"
+
+        sac_agent = SACAgent(config, env, env, filename)
         sac_agent.train(render=False)
         # sac_agent.test(
-        #     filename="models/actor/20201112-103222_1000/variables/variables",
+        #     filename=filename,
         #     render=True,
+        #     standalone=True,
         # )
 
 
