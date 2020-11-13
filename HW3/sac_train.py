@@ -96,7 +96,8 @@ class SACAgent:
                 for _ in range(step_num):
                     actor_loss, critic_loss = self.train_step()
             else:
-                print("buffer size too small: {}".format(len(self.buffer.buffer)))
+                print("buffer size too small: {}".format(
+                    len(self.buffer.buffer)))
 
             # if update_counter >= self.config.update_threshold:
             #     if update_counter % self.config.update_freq == 0:
@@ -250,22 +251,22 @@ class SACAgent:
 
 
 def main():
-    tf.debugging.set_log_device_placement(True)
-    gpus = tf.config.experimental.list_physical_devices("GPU")
-    tf.config.experimental.set_visible_devices(gpus[2], "GPU")
-    tf.config.experimental.set_memory_growth(gpus[2], True)
+    # tf.debugging.set_log_device_placement(True)
+    # gpus = tf.config.experimental.list_physical_devices("GPU")
+    # tf.config.experimental.set_visible_devices(gpus[2], "GPU")
+    # tf.config.experimental.set_memory_growth(gpus[2], True)
 
-    with tf.device("/device:GPU:2"):
-        env = gym.make("BipedalWalkerHardcore-v3")
-        env = BipedalWalkerHardcoreWrapper(env)
-        # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
-        config_path = "sac_config.json"
-        with open(config_path) as json_file:
-            config = json.load(json_file)
-        config = munch.munchify(config)
-        sac_agent = SACAgent(config, env)
-        sac_agent.train(render=False)
-        # sac_agent.test(filename="models/actor/20201111-161316_9100/variables/variables")
+    # with tf.device("/device:GPU:2"):
+    env = gym.make("BipedalWalkerHardcore-v2")
+    env = BipedalWalkerHardcoreWrapper(env)
+    # env = gym.wrappers.Monitor(env, "ppo_recording", force=True)
+    config_path = "sac_config.json"
+    with open(config_path) as json_file:
+        config = json.load(json_file)
+    config = munch.munchify(config)
+    sac_agent = SACAgent(config, env)
+    # sac_agent.train(render=False)
+    sac_agent.test(filename="models/variables", render=True)
 
 
 if __name__ == "__main__":
