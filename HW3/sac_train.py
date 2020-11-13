@@ -294,6 +294,7 @@ class SACAgent:
 
         # Log to TensorBoard
         test_rewards = test_rewards / test_iter_num
+        print(test_rewards)
         if not standalone:
             with self.test_summary_writer.as_default():
                 tf.summary.scalar("test reward", test_rewards,
@@ -311,22 +312,22 @@ def main():
     with tf.device("/device:GPU:2"):
         env = gym.make("BipedalWalkerHardcore-v3")
         # train_env = BipedalWalkerHardcoreWrapper(env)
-        # env = gym.wrappers.Monitor(env, "sac_recording", force=True)
+        env = gym.wrappers.Monitor(env, "sac_recording", force=True)
         config_path = "sac_config.json"
         with open(config_path) as json_file:
             config = json.load(json_file)
         config = munch.munchify(config)
 
         # filename = "models/actor/20201112-140453_1700/variables/variables"
-        filename = "models/actor/20201112-152302_2600/variables/variables"
+        filename = "models/actor/20201112-152302_4200/variables/variables"
 
         sac_agent = SACAgent(config, env, env, filename)
-        sac_agent.train(render=False)
-        # sac_agent.test(
-        #     filename=filename,
-        #     render=True,
-        #     standalone=True,
-        # )
+#         sac_agent.train(render=False)
+        sac_agent.test(
+            filename=filename,
+            render=False,
+            standalone=True,
+        )
 
 
 if __name__ == "__main__":
