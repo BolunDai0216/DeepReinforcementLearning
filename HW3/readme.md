@@ -11,6 +11,6 @@ Some tricks are applied to enhance performance:
 
 ### SAC performance 
 ![SAC Performance](https://github.com/BolunDai0216/DeepReinforcementLearning/blob/main/HW3/img/bipedalwalkerharcore-v3.png)
-The discrepancy between the reward during training and testing is due to reward scaling during training. A video showing the trained model can be found [Here](https://www.youtube.com/watch?v=8hUTnoNfTn8).
+The discrepancy between the reward during training and testing is due to reward scaling during training. A video showing the trained model can be found [Here](https://youtu.be/SyonPJc8hMw).
 
 
