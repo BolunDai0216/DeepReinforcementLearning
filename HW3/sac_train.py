@@ -303,30 +303,31 @@ class SACAgent:
 
 
 def main():
-    tf.debugging.set_log_device_placement(True)
-    gpus = tf.config.experimental.list_physical_devices("GPU")
-    tf.config.experimental.set_visible_devices(gpus[2], "GPU")
-    tf.config.experimental.set_memory_growth(gpus[2], True)
+    # tf.debugging.set_log_device_placement(True)
+    # gpus = tf.config.experimental.list_physical_devices("GPU")
+    # tf.config.experimental.set_visible_devices(gpus[2], "GPU")
+    # tf.config.experimental.set_memory_growth(gpus[2], True)
 
-    with tf.device("/device:GPU:2"):
-        env = gym.make("BipedalWalkerHardcore-v3")
-        # train_env = BipedalWalkerHardcoreWrapper(env)
-        # env = gym.wrappers.Monitor(env, "sac_recording", force=True)
-        config_path = "sac_config.json"
-        with open(config_path) as json_file:
-            config = json.load(json_file)
-        config = munch.munchify(config)
+    # with tf.device("/device:GPU:2"):
+    env = gym.make("BipedalWalkerHardcore-v2")
+    # train_env = BipedalWalkerHardcoreWrapper(env)
+    # env = gym.wrappers.Monitor(env, "sac_recording", force=True)
+    config_path = "sac_config.json"
+    with open(config_path) as json_file:
+        config = json.load(json_file)
+    config = munch.munchify(config)
 
-        # filename = "models/actor/20201112-140453_1700/variables/variables"
-        filename = "models/actor/20201112-152302_2600/variables/variables"
+    # filename = "models/actor/20201112-140453_1700/variables/variables"
+    # filename = "models/actor/20201112-152302_2600/variables/variables"
+    filename = "models/5000/variables"
 
-        sac_agent = SACAgent(config, env, env, filename)
-        sac_agent.train(render=False)
-        # sac_agent.test(
-        #     filename=filename,
-        #     render=True,
-        #     standalone=True,
-        # )
+    sac_agent = SACAgent(config, env, env, filename)
+    # sac_agent.train(render=False)
+    sac_agent.test(
+        filename=filename,
+        render=True,
+        standalone=True,
+    )
 
 
 if __name__ == "__main__":
