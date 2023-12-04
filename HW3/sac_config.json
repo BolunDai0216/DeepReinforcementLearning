@@ -1,0 +1,23 @@
+{
+    "actor_input_size": 24,
+    "actor_output_size": 4,
+    "actor_lr": 1e-3,
+    "action_lim": 1.0,
+    "critic_obs_input_size": 24,
+    "critic_act_input_size": 4,
+    "critic_output_size": 1,
+    "critic_lr": 1e-3,
+    "gamma": 0.99,
+    "alpha": 0.1,
+    "max_iter": 1600,
+    "iter_num": 200,
+    "log_freq": 25,
+    "test_iters": 50,
+    "max_buffer_size": 2e6,
+    "burn_in_size": 1000000,
+    "update_threshold": 2000,
+    "polyak_constant": 0.995,
+    "batch_size": 200,
+    "start_steps": 10000,
+    "update_after": 1000
+}

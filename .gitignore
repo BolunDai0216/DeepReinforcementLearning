@@ -157,3 +157,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Configurations
+!HW2/dqn_config.json
+!HW2/ppo_config.json
+!HW2/ppo_pendulum_config.json
+!HW2/reinforce_config.json
+!HW3/sac_config.json
+!HW3/sac_pendulum_config.json

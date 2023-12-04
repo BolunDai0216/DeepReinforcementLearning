@@ -1,0 +1,9 @@
+{
+    "lr": 1e-3,
+    "iter_num": 1000,
+    "gamma": 0.99,
+    "batch_size": 32,
+    "max_iter": 1000,
+    "log_freq": 100,
+    "max_test_iter": 20
+}

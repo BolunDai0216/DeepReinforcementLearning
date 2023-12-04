@@ -1,0 +1,18 @@
+{
+    "actor_input_size": 3,
+    "actor_output_size": 1,
+    "actor_lr": 3e-4,
+    "actor_update_per_iter": 80,
+    "critic_input_size": 3,
+    "critic_output_size": 1,
+    "critic_lr": 1e-3,
+    "critic_update_per_iter": 80,
+    "gamma": 0.99,
+    "lam": 0.97,
+    "clip_ratio": 0.2,
+    "max_iter": 1000,
+    "iter_num": 200,
+    "log_freq": 100,
+    "target_kl": 0.01,
+    "test_iters": 20
+}

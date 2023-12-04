@@ -1,0 +1,17 @@
+{
+    "history_length": 6,
+    "lr": 1e-3,
+    "epsilon": 1.0,
+    "epsilon_decay": 0.999,
+    "max_buffer_size": 10000,
+    "burn_in_size": 0,
+    "iter_num": 100000,
+    "gamma": 0.99,
+    "batch_size": 64,
+    "max_iter": 1000,
+    "test_iter_num": 20,
+    "log_freq": 100,
+    "target_update_freq": 10,
+    "window_close_freq":1,
+    "polyak_constant": 0.01
+}
